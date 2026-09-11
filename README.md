@@ -24,9 +24,10 @@ pnpm db:check                # verifica a conexão PostgreSQL (Drizzle)
 pnpm --filter @safecircle/api test   # testes de integração (usa PostgreSQL)
 ```
 
-**Status:** Phase 0 (Fundação) concluída. Phase 1 (Autenticação) implementada:
-cadastro, login, `/me`, refresh com rotação e logout no backend, e telas de
-Login/Cadastro com sessão no app mobile.
+**Status:** Phase 0 (Fundação) e Phase 1 (Autenticação) concluídas. Phase 2
+(Grupos de Confiança) implementada: criar grupos, papéis OWNER/ADMIN/MEMBER,
+gestão de membros, e convites por e-mail (aceitar/recusar/revogar) no backend,
+com as telas correspondentes no app mobile.
 
 ## 1. Visão geral
 
