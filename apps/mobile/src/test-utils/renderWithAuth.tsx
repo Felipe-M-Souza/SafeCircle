@@ -2,6 +2,8 @@ import { render, type RenderResult } from "@testing-library/react-native";
 import { AuthContext, type AuthContextValue } from "../auth/AuthContext";
 import type { ApiClient, AuthUser, EmergencyAlert } from "../lib/api";
 import type { Nav } from "../navigation/types";
+import type { RealtimeEvent } from "../realtime/events";
+import { RealtimeContext, type RealtimeContextValue } from "../realtime/RealtimeProvider";
 
 /** Usuário sintético para testes. */
 export const testUser: AuthUser = { id: "user-1", name: "Felipe", email: "felipe@example.com" };
@@ -36,6 +38,12 @@ export function createMockApi(overrides: Partial<ApiClient> = {}): jest.Mocked<A
     getAlert: jest.fn(),
     resolveAlert: jest.fn(),
     cancelAlert: jest.fn(),
+    listAcknowledgements: jest.fn(async () => []),
+    setAcknowledgement: jest.fn(async () => ({
+      user: { id: "user-1", name: "Felipe" },
+      type: "SEEN" as const,
+      updatedAt: "2026-09-11T20:31:00.000Z",
+    })),
     registerPushDevice: jest.fn(async () => ({
       id: "device-1",
       platform: "IOS" as const,
@@ -82,21 +90,57 @@ export function makeAlert(overrides: Partial<EmergencyAlert> = {}): EmergencyAle
 interface RenderWithAuthOptions {
   api: ApiClient;
   user?: AuthUser | null;
+  realtime?: RealtimeContextValue | null;
+}
+
+/** Valor de AuthContext para testes (autenticado por padrão). */
+export function createAuthValue(
+  api: ApiClient,
+  overrides: Partial<AuthContextValue> = {},
+): AuthContextValue {
+  return {
+    status: "authenticated",
+    user: testUser,
+    sessionPersistent: true,
+    api,
+    getAccessToken: () => "access-token-de-teste",
+    refreshAccessToken: jest.fn(async () => "access-token-renovado"),
+    accessTokenVersion: 1,
+    signIn: jest.fn(),
+    signUp: jest.fn(),
+    signOut: jest.fn(),
+    ...overrides,
+  };
+}
+
+/** RealtimeContext controlável nos testes: `emit` dispara eventos aos assinantes. */
+export function createMockRealtime(
+  overrides: Partial<RealtimeContextValue> = {},
+): RealtimeContextValue & { emit: (event: RealtimeEvent) => void } {
+  const listeners = new Set<(event: RealtimeEvent) => void>();
+  return {
+    state: "CONNECTED",
+    resyncVersion: 0,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    emit: (event) => {
+      for (const listener of listeners) listener(event);
+    },
+    ...overrides,
+  };
 }
 
 /** Renderiza a tela dentro de um AuthContext de teste (RNTL v14: assíncrono). */
 export function renderWithAuth(
   ui: React.ReactElement,
-  { api, user = testUser }: RenderWithAuthOptions,
+  { api, user = testUser, realtime = null }: RenderWithAuthOptions,
 ): Promise<RenderResult> {
-  const value: AuthContextValue = {
-    status: "authenticated",
-    user,
-    sessionPersistent: true,
-    api,
-    signIn: jest.fn(),
-    signUp: jest.fn(),
-    signOut: jest.fn(),
-  };
-  return render(<AuthContext.Provider value={value}>{ui}</AuthContext.Provider>);
+  const value = createAuthValue(api, { user });
+  return render(
+    <AuthContext.Provider value={value}>
+      <RealtimeContext.Provider value={realtime}>{ui}</RealtimeContext.Provider>
+    </AuthContext.Provider>,
+  );
 }

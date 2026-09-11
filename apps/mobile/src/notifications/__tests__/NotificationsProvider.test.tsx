@@ -2,7 +2,7 @@ import { Pressable, Text } from "react-native";
 import * as Notifications from "expo-notifications";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
-import { createMockApi, testUser } from "../../test-utils/renderWithAuth";
+import { createAuthValue, createMockApi, testUser } from "../../test-utils/renderWithAuth";
 import { registerCurrentDevice } from "../device-registration";
 import { NotificationsProvider, useNotifications } from "../NotificationsProvider";
 import { consumePendingAlertId, resetPendingAlert, subscribeAlertOpen } from "../pending-alert";
@@ -40,15 +40,10 @@ function Probe(): React.JSX.Element {
 
 function renderProvider(status: AuthContextValue["status"] = "authenticated") {
   const api = createMockApi();
-  const value: AuthContextValue = {
+  const value: AuthContextValue = createAuthValue(api, {
     status,
     user: status === "authenticated" ? testUser : null,
-    sessionPersistent: true,
-    api,
-    signIn: jest.fn(),
-    signUp: jest.fn(),
-    signOut: jest.fn(),
-  };
+  });
   const ui = (
     <AuthContext.Provider value={value}>
       <NotificationsProvider>
