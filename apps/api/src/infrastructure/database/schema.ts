@@ -20,6 +20,7 @@ import {
  * Phase 3 — Alerta de Emergência: introduz `emergency_alerts`, `alert_locations`
  * e `idempotency_keys`.
  * Phase 4 — Notificações Push: introduz `push_devices`.
+ * Phase 5 — Tempo Real: introduz `alert_acknowledgements`.
  * Identificadores internos permanecem em inglês por consistência técnica.
  */
 
@@ -268,11 +269,61 @@ export const pushDevices = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 5 — Atualizações em Tempo Real (acknowledgements)
+// ------------------------------------------------------------------
+
+export const acknowledgementType = pgEnum("acknowledgement_type", [
+  "SEEN",
+  "ACKNOWLEDGED",
+  "GOING_TO_HELP",
+  "EMERGENCY_SERVICES_CONTACTED",
+]);
+
+/**
+ * Estado declarado por um membro sobre um alerta (Phase 5).
+ * Um usuário possui exatamente um estado atual por alerta (upsert). Não é
+ * garantia real de socorro: representa apenas o que o membro declarou.
+ */
+export const alertAcknowledgements = pgTable(
+  "alert_acknowledgements",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    alertId: uuid("alert_id")
+      .notNull()
+      .references(() => emergencyAlerts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: acknowledgementType("type").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_acknowledgements_alert_user_unique").on(table.alertId, table.userId),
+    index("alert_acknowledgements_alert_id_idx").on(table.alertId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
   alerts: many(emergencyAlerts),
   pushDevices: many(pushDevices),
+  acknowledgements: many(alertAcknowledgements),
+}));
+
+export const alertAcknowledgementsRelations = relations(alertAcknowledgements, ({ one }) => ({
+  alert: one(emergencyAlerts, {
+    fields: [alertAcknowledgements.alertId],
+    references: [emergencyAlerts.id],
+  }),
+  user: one(users, {
+    fields: [alertAcknowledgements.userId],
+    references: [users.id],
+  }),
 }));
 
 export const pushDevicesRelations = relations(pushDevices, ({ one }) => ({
@@ -350,3 +401,5 @@ export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 export type AlertStatus = (typeof alertStatus.enumValues)[number];
 export type PushDevice = typeof pushDevices.$inferSelect;
 export type PushPlatform = (typeof pushPlatform.enumValues)[number];
+export type AlertAcknowledgement = typeof alertAcknowledgements.$inferSelect;
+export type AcknowledgementType = (typeof acknowledgementType.enumValues)[number];

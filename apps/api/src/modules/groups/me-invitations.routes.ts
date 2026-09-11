@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
 import { errors } from "../../shared/errors.js";
 import { acceptInvitation, listMyInvitations, rejectInvitation } from "./invitations.service.js";
 
@@ -24,7 +25,16 @@ export async function meInvitationsRoutes(app: FastifyInstance): Promise<void> {
     const invitationId = parseInvitationId(
       (request.params as { invitationId: string }).invitationId,
     );
-    return acceptInvitation(app.db, request.auth.userId, invitationId);
+    const result = await acceptInvitation(app.db, request.auth.userId, invitationId);
+    // Phase 5: o próprio usuário ressincroniza a lista de grupos nos outros aparelhos.
+    const userId = request.auth.userId;
+    app.background.run("realtime:GROUP_MEMBERSHIP_CHANGED", async () => {
+      app.realtime.publishToUser(
+        userId,
+        createRealtimeEvent("GROUP_MEMBERSHIP_CHANGED", { groupId: result.groupId, userId }),
+      );
+    });
+    return result;
   });
 
   app.post("/me/group-invitations/:invitationId/reject", async (request, reply) => {

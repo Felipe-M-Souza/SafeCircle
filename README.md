@@ -25,15 +25,17 @@ pnpm --filter @safecircle/api test      # testes de integração (usa PostgreSQL
 pnpm --filter @safecircle/mobile test   # testes do app mobile (Jest + jest-expo, sem GPS real)
 ```
 
-**Status:** Phases 0 a 3 concluídas (Fundação, Autenticação, Grupos de
-Confiança e Alerta de Emergência com `POST /alerts` idempotente, localização
-inicial opcional e botão SOS pressionar-e-segurar). Phase 4 (Notificações
-Push) implementada: registro de dispositivos (`POST/DELETE /me/push-devices`),
-envio via Expo Push API em segundo plano após o commit do alerta (a criação
-nunca depende do push), conteúdo mínimo sem dados sensíveis, desativação de
-tokens inválidos e, no app, permissão com contexto, registro após login e
-abertura do alerta ao tocar na notificação. Ainda **sem** realtime, mapa ou
-confirmações de recebimento (próximas fases).
+**Status:** Phases 0 a 4 concluídas (Fundação, Autenticação, Grupos de
+Confiança, Alerta de Emergência e Notificações Push). Phase 5 (Atualizações
+em Tempo Real) implementada: WebSocket autenticado em `GET /realtime`
+(server-push only, eventos versionados `ALERT_CREATED/RESOLVED/CANCELLED`,
+`ALERT_ACKNOWLEDGEMENT_CHANGED`, `GROUP_MEMBERSHIP_CHANGED`), respostas do
+grupo (`PUT /alerts/:id/acknowledgement`, `GET /alerts/:id/acknowledgements`)
+e, no app, cliente com reconexão automática (backoff + jitter),
+ressincronização via REST a cada (re)conexão e ações "Vi o alerta / Estou
+indo ajudar / Acionei emergência". O banco e a API REST continuam a fonte de
+verdade; o realtime é em memória em uma única instância da API (ver ADR 0006).
+Ainda **sem** localização ao vivo ou mapa (próximas fases).
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
 (iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push

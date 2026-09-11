@@ -6,6 +6,7 @@ import { backgroundTasksPlugin } from "./plugins/background-tasks.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
 import { rateLimitPlugin } from "./plugins/rate-limit.js";
+import { realtimePlugin } from "./plugins/realtime.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
@@ -88,6 +89,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const databaseUrl = options.databaseUrl ?? config.databaseUrl;
   if (databaseUrl) {
     await app.register(databasePlugin, { databaseUrl });
+    // Realtime (Phase 5) depende de auth + banco; registrado antes das rotas
+    // que publicam eventos.
+    await app.register(realtimePlugin);
     await app.register(authRoutes, { appConfig: config });
     await app.register(usersRoutes, { appConfig: config });
     await app.register(groupsRoutes, { appConfig: config });

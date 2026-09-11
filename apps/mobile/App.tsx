@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import { unregisterCurrentDevice } from "./src/notifications/device-registration";
 import { NotificationsProvider } from "./src/notifications/NotificationsProvider";
+import { RealtimeProvider } from "./src/realtime/RealtimeProvider";
 import { AuthenticatedApp } from "./src/screens/AuthenticatedApp";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { RegisterScreen } from "./src/screens/RegisterScreen";
@@ -39,8 +40,10 @@ export default function App(): React.JSX.Element {
     // Logout desativa o push device no backend (best-effort) antes de encerrar a sessão.
     <AuthProvider beforeSignOut={unregisterCurrentDevice}>
       <NotificationsProvider>
-        <StatusBar style="light" />
-        <Root />
+        <RealtimeProvider>
+          <StatusBar style="light" />
+          <Root />
+        </RealtimeProvider>
       </NotificationsProvider>
     </AuthProvider>
   );
