@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint, typecheck, testes e build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: safecircle
+          POSTGRES_PASSWORD: safecircle
+          POSTGRES_DB: safecircle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U safecircle"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://safecircle:safecircle@localhost:5432/safecircle
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Validação (lint + format + typecheck + testes + build)
+        run: pnpm validate
+
+      - name: Verificar conectividade com o banco (Drizzle + PostgreSQL)
+        run: pnpm db:check

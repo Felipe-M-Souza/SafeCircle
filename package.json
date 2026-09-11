@@ -1,0 +1,38 @@
+{
+  "name": "safecircle",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SafeCircle — rede privada de segurança para grupos de confiança (monorepo).",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "validate": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run build",
+    "dev:api": "pnpm --filter @safecircle/api dev",
+    "dev:mobile": "pnpm --filter @safecircle/mobile web",
+    "db:start": "bash scripts/db-start.sh",
+    "db:stop": "bash scripts/db-stop.sh",
+    "db:check": "pnpm --filter @safecircle/api run db:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.10.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

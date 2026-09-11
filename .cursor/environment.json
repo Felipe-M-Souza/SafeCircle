@@ -1,0 +1,20 @@
+{
+  "name": "SafeCircle",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "node",
+  "install": "corepack enable && corepack prepare pnpm@10.33.3 --activate && pnpm install --frozen-lockfile && (test -f .env || cp .env.example .env)",
+  "start": "bash scripts/db-start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "pnpm dev:api"
+    },
+    {
+      "name": "mobile-web",
+      "command": "pnpm dev:mobile"
+    }
+  ],
+  "ports": [3000, 8081]
+}

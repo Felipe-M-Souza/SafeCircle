@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# SafeCircle / Expo / build outputs
+.expo/
+apps/mobile/expo-env.d.ts
+apps/**/dist/
+apps/**/.expo/
+
