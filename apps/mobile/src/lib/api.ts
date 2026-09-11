@@ -70,19 +70,52 @@ async function doFetch<T>(path: string, init: RequestInit): Promise<T> {
   return parse<T>(response);
 }
 
+export type GroupRole = "OWNER" | "ADMIN" | "MEMBER";
+
+export interface GroupSummary {
+  id: string;
+  name: string;
+  role: GroupRole;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface GroupMember {
+  id: string;
+  name: string;
+  role: GroupRole;
+  joinedAt: string;
+}
+
+export interface GroupInvitation {
+  id: string;
+  invitedEmail: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface MyInvitation {
+  id: string;
+  group: { id: string; name: string };
+  invitedBy: { name: string };
+  expiresAt: string;
+}
+
 export function createApiClient(bridge?: AuthBridge) {
-  async function authedGet<T>(path: string, retry = true): Promise<T> {
+  async function authed<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
     const token = bridge?.getAccessToken() ?? null;
     try {
       return await doFetch<T>(path, {
-        method: "GET",
+        method,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401 && retry && bridge) {
         const refreshed = await bridge.refreshAccessToken();
         if (refreshed) {
-          return authedGet<T>(path, false);
+          return authed<T>(method, path, body, false);
         }
       }
       throw error;
@@ -115,7 +148,55 @@ export function createApiClient(bridge?: AuthBridge) {
       });
     },
     me(): Promise<PublicUser> {
-      return authedGet<PublicUser>("/me");
+      return authed<PublicUser>("GET", "/me");
+    },
+
+    // --- Grupos de Confiança (Phase 2) ---
+    listGroups(): Promise<GroupSummary[]> {
+      return authed<GroupSummary[]>("GET", "/groups");
+    },
+    createGroup(name: string): Promise<GroupSummary> {
+      return authed<GroupSummary>("POST", "/groups", { name });
+    },
+    getGroup(groupId: string): Promise<GroupSummary> {
+      return authed<GroupSummary>("GET", `/groups/${groupId}`);
+    },
+    updateGroup(groupId: string, name: string): Promise<GroupSummary> {
+      return authed<GroupSummary>("PATCH", `/groups/${groupId}`, { name });
+    },
+    listMembers(groupId: string): Promise<GroupMember[]> {
+      return authed<GroupMember[]>("GET", `/groups/${groupId}/members`);
+    },
+    leaveGroup(groupId: string): Promise<void> {
+      return authed<void>("DELETE", `/groups/${groupId}/members/me`);
+    },
+    removeMember(groupId: string, userId: string): Promise<void> {
+      return authed<void>("DELETE", `/groups/${groupId}/members/${userId}`);
+    },
+    changeMemberRole(
+      groupId: string,
+      userId: string,
+      role: "ADMIN" | "MEMBER",
+    ): Promise<GroupMember> {
+      return authed<GroupMember>("PATCH", `/groups/${groupId}/members/${userId}/role`, { role });
+    },
+    createInvitation(groupId: string, email: string): Promise<GroupInvitation> {
+      return authed<GroupInvitation>("POST", `/groups/${groupId}/invitations`, { email });
+    },
+    listGroupInvitations(groupId: string): Promise<GroupInvitation[]> {
+      return authed<GroupInvitation[]>("GET", `/groups/${groupId}/invitations`);
+    },
+    revokeInvitation(groupId: string, invitationId: string): Promise<void> {
+      return authed<void>("DELETE", `/groups/${groupId}/invitations/${invitationId}`);
+    },
+    listMyInvitations(): Promise<MyInvitation[]> {
+      return authed<MyInvitation[]>("GET", "/me/group-invitations");
+    },
+    acceptInvitation(invitationId: string): Promise<{ groupId: string }> {
+      return authed<{ groupId: string }>("POST", `/me/group-invitations/${invitationId}/accept`);
+    },
+    rejectInvitation(invitationId: string): Promise<void> {
+      return authed<void>("POST", `/me/group-invitations/${invitationId}/reject`);
     },
   };
 }

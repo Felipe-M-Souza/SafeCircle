@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
-import { AuthenticatedHomeScreen } from "./src/screens/AuthenticatedHomeScreen";
+import { AuthenticatedApp } from "./src/screens/AuthenticatedApp";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { RegisterScreen } from "./src/screens/RegisterScreen";
 import { SplashScreen } from "./src/screens/SplashScreen";
@@ -22,7 +22,7 @@ function Root(): React.JSX.Element {
   }
 
   if (status === "authenticated") {
-    return <AuthenticatedHomeScreen />;
+    return <AuthenticatedApp />;
   }
 
   return authScreen === "login" ? (
