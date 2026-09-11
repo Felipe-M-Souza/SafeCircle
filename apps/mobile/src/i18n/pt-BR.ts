@@ -47,6 +47,71 @@ export const ptBR = {
     pendingInvitations: (count: number) =>
       count === 1 ? "1 convite pendente" : `${count} convites pendentes`,
     logout: "Sair",
+    // Phase 3 — Alerta de Emergência
+    selectedGroup: "Grupo selecionado",
+    chooseGroupHint: "Toque em um grupo para selecioná-lo.",
+    loadingGroups: "Carregando seus grupos...",
+    noGroups: "Você precisa participar de um grupo de confiança antes de criar um alerta.",
+    goToGroups: "Ver meus grupos",
+    activeAlerts: "Alertas ativos",
+    ownActiveAlert: "Você tem um alerta ativo neste grupo.",
+    viewAlert: "Ver alerta",
+  },
+  sos: {
+    holdLabel: "SEGURE PARA PEDIR AJUDA",
+    holdHint: "Mantenha pressionado para ativar.",
+    accessibilityLabel: "Pedir ajuda ao grupo de confiança",
+    accessibilityHint: "Mantenha pressionado por dois segundos para ativar o alerta de emergência.",
+    locating: "Obtendo sua localização...",
+    activating: "Ativando alerta...",
+    // Texto exibido pelo sistema ao pedir permissão de localização (app.json).
+    locationPermissionRationale:
+      "O SafeCircle pode usar sua localização durante um alerta para ajudar seu grupo de confiança a encontrar você.",
+  },
+  alertStatus: {
+    ACTIVE: "ATIVO",
+    RESOLVED: "RESOLVIDO",
+    CANCELLED: "CANCELADO",
+  } as Record<string, string>,
+  alerts: {
+    listTitle: "Alertas ativos",
+    empty: "Nenhum alerta ativo nos seus grupos.",
+    refreshHint: "Puxe para atualizar. A lista também é atualizada ao voltar para o aplicativo.",
+    activatedAgo: (minutes: number) => {
+      if (minutes < 1) return "Ativado agora";
+      if (minutes < 60) return minutes === 1 ? "Ativado há 1 min" : `Ativado há ${minutes} min`;
+      const hours = Math.floor(minutes / 60);
+      return hours === 1 ? "Ativado há 1 h" : `Ativado há ${hours} h`;
+    },
+    viewAlert: "Ver alerta",
+    loadError: "Não foi possível carregar os alertas.",
+  },
+  alertDetails: {
+    titleActive: "🚨 Alerta ativo",
+    titleResolved: "Alerta resolvido",
+    titleCancelled: "Alerta cancelado",
+    activatedTitle: "Alerta ativado",
+    activatedMessage: (groupName: string) => `Seu alerta está ativo no grupo ${groupName}.`,
+    activatedNote: "Os membros do grupo poderão visualizar este alerta no SafeCircle.",
+    group: "Grupo",
+    triggeredBy: "Acionado por",
+    time: "Horário",
+    status: "Status",
+    location: "Localização",
+    locationAvailable: "Disponível",
+    locationUnavailable: "Não disponível",
+    locationAccuracy: (meters: number) => `Precisão aproximada: ${Math.round(meters)} m`,
+    resolvedAt: "Encerrado às",
+    cancelledAt: "Cancelado às",
+    imSafe: "ESTOU EM SEGURANÇA",
+    cancelAlert: "CANCELAR ALERTA",
+    confirmCancelMessage:
+      "Este alerta foi um acionamento acidental? Ele será cancelado e deixará de aparecer como ativo para o grupo.",
+    confirmCancel: "Sim, cancelar alerta",
+    keepAlert: "Manter alerta",
+    resolvedMessage: "Que bom que você está em segurança. O alerta foi encerrado.",
+    cancelledMessage: "O alerta foi cancelado.",
+    loadError: "Não foi possível carregar o alerta.",
   },
   roles: {
     OWNER: "Proprietário",
@@ -134,6 +199,13 @@ export const ptBR = {
     CANNOT_REMOVE_OWNER: "Não é possível remover o proprietário.",
     INVALID_GROUP_ROLE: "Papel de grupo inválido.",
     MEMBER_NOT_FOUND: "Membro não encontrado.",
+    // Phase 3 — Alerta de Emergência
+    FORBIDDEN: "Você não tem permissão para esta ação.",
+    ALERT_NOT_FOUND: "Alerta não encontrado.",
+    ALERT_ALREADY_ACTIVE: "Você já possui um alerta ativo neste grupo.",
+    INVALID_ALERT_TRANSITION: "Este alerta já foi encerrado.",
+    INVALID_IDEMPOTENCY_KEY: "Não foi possível registrar o alerta. Tente novamente.",
+    IDEMPOTENCY_KEY_REUSED: "Não foi possível registrar o alerta. Tente novamente.",
   } as Record<string, string>,
 } as const;
 

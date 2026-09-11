@@ -102,20 +102,71 @@ export interface MyInvitation {
   expiresAt: string;
 }
 
+// --- Alerta de Emergência (Phase 3) ---
+
+export type AlertStatus = "ACTIVE" | "RESOLVED" | "CANCELLED";
+
+/** Snapshot de localização devolvido pela API (somente a membros do grupo). */
+export interface AlertLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  capturedAt: string;
+}
+
+/** Snapshot opcional enviado na criação do alerta. */
+export interface AlertLocationInput {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  capturedAt?: string;
+}
+
+export interface EmergencyAlert {
+  id: string;
+  groupId: string;
+  groupName: string;
+  status: AlertStatus;
+  createdBy: { id: string; name: string };
+  activatedAt: string;
+  resolvedAt: string | null;
+  cancelledAt: string | null;
+  location: AlertLocation | null;
+}
+
+export interface CreateAlertInput {
+  groupId: string;
+  /** Opcional: a falta de GPS nunca impede o pedido de ajuda. */
+  location?: AlertLocationInput | null;
+}
+
+interface AuthedOptions {
+  headers?: Record<string, string>;
+}
+
 export function createApiClient(bridge?: AuthBridge) {
-  async function authed<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
+  async function authed<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    options: AuthedOptions = {},
+    retry = true,
+  ): Promise<T> {
     const token = bridge?.getAccessToken() ?? null;
     try {
       return await doFetch<T>(path, {
         method,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers ?? {}),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401 && retry && bridge) {
         const refreshed = await bridge.refreshAccessToken();
         if (refreshed) {
-          return authed<T>(method, path, body, false);
+          return authed<T>(method, path, body, options, false);
         }
       }
       throw error;
@@ -197,6 +248,29 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     rejectInvitation(invitationId: string): Promise<void> {
       return authed<void>("POST", `/me/group-invitations/${invitationId}/reject`);
+    },
+
+    // --- Alerta de Emergência (Phase 3) ---
+    /**
+     * Cria um alerta. A `idempotencyKey` identifica a intenção de ativação:
+     * o retry da mesma intenção deve reutilizar a mesma chave.
+     */
+    createAlert(input: CreateAlertInput, idempotencyKey: string): Promise<EmergencyAlert> {
+      return authed<EmergencyAlert>("POST", "/alerts", input, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+    },
+    listAlerts(status: AlertStatus = "ACTIVE"): Promise<EmergencyAlert[]> {
+      return authed<EmergencyAlert[]>("GET", `/alerts?status=${status}`);
+    },
+    getAlert(alertId: string): Promise<EmergencyAlert> {
+      return authed<EmergencyAlert>("GET", `/alerts/${alertId}`);
+    },
+    resolveAlert(alertId: string): Promise<EmergencyAlert> {
+      return authed<EmergencyAlert>("POST", `/alerts/${alertId}/resolve`);
+    },
+    cancelAlert(alertId: string): Promise<EmergencyAlert> {
+      return authed<EmergencyAlert>("POST", `/alerts/${alertId}/cancel`);
     },
   };
 }

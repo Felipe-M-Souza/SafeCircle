@@ -21,13 +21,18 @@ Validação e utilitários:
 ```bash
 pnpm validate                # lint + format + typecheck + testes + build
 pnpm db:check                # verifica a conexão PostgreSQL (Drizzle)
-pnpm --filter @safecircle/api test   # testes de integração (usa PostgreSQL)
+pnpm --filter @safecircle/api test      # testes de integração (usa PostgreSQL; lê DATABASE_URL do ambiente)
+pnpm --filter @safecircle/mobile test   # testes do app mobile (Jest + jest-expo, sem GPS real)
 ```
 
-**Status:** Phase 0 (Fundação) e Phase 1 (Autenticação) concluídas. Phase 2
-(Grupos de Confiança) implementada: criar grupos, papéis OWNER/ADMIN/MEMBER,
-gestão de membros, e convites por e-mail (aceitar/recusar/revogar) no backend,
-com as telas correspondentes no app mobile.
+**Status:** Phase 0 (Fundação), Phase 1 (Autenticação) e Phase 2 (Grupos de
+Confiança) concluídas. Phase 3 (Alerta de Emergência) implementada: criação
+idempotente de alertas (`POST /alerts` com `Idempotency-Key`), localização
+inicial opcional, um alerta ativo por usuário/grupo garantido no banco,
+consulta por membros do grupo, resolução/cancelamento pelo criador e, no app,
+botão SOS com pressionar-e-segurar, seleção de grupo, lista de alertas ativos
+e tela do alerta. Ainda **sem** push, realtime, mapa ou confirmações de
+recebimento (próximas fases).
 
 ## 1. Visão geral
 

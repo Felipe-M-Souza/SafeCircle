@@ -1,5 +1,14 @@
 import { relations, sql } from "drizzle-orm";
-import { index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  doublePrecision,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 /**
  * Schema Drizzle do SafeCircle.
@@ -7,6 +16,8 @@ import { index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "driz
  * Phase 1 — Autenticação: introduz `users` e `auth_sessions`.
  * Phase 2 — Grupos de Confiança: introduz `trusted_groups`, `group_memberships`
  * e `group_invitations`.
+ * Phase 3 — Alerta de Emergência: introduz `emergency_alerts`, `alert_locations`
+ * e `idempotency_keys`.
  * Identificadores internos permanecem em inglês por consistência técnica.
  */
 
@@ -130,9 +141,96 @@ export const groupInvitations = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 3 — Alerta de Emergência
+// ------------------------------------------------------------------
+
+export const alertStatus = pgEnum("alert_status", ["ACTIVE", "RESOLVED", "CANCELLED"]);
+
+export const emergencyAlerts = pgTable(
+  "emergency_alerts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => trustedGroups.id, { onDelete: "cascade" }),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: alertStatus("status").notNull().default("ACTIVE"),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // No máximo um alerta ACTIVE por (usuário, grupo) — garantido no PostgreSQL.
+    uniqueIndex("emergency_alerts_active_per_user_group_unique")
+      .on(table.createdByUserId, table.groupId)
+      .where(sql`${table.status} = 'ACTIVE'`),
+    index("emergency_alerts_group_id_status_idx").on(table.groupId, table.status),
+    index("emergency_alerts_created_by_user_id_idx").on(table.createdByUserId),
+  ],
+);
+
+/**
+ * Snapshot de localização capturado no início do alerta (Phase 3).
+ * Dado sensível: só é exposto a membros do grupo e nunca aparece em logs.
+ * Nesta fase existe no máximo um snapshot por alerta (sem tracking contínuo).
+ */
+export const alertLocations = pgTable(
+  "alert_locations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    alertId: uuid("alert_id")
+      .notNull()
+      .references(() => emergencyAlerts.id, { onDelete: "cascade" }),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracy: doublePrecision("accuracy"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("alert_locations_alert_id_idx").on(table.alertId)],
+);
+
+/**
+ * Idempotência persistente para operações críticas sujeitas a retry
+ * (README §17). A chave é escopada por usuário + operação: a mesma chave
+ * enviada por usuários diferentes não interfere entre si.
+ */
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Operação a que a chave se refere (ex.: "alerts.create").
+    scope: text("scope").notNull(),
+    key: text("key").notNull(),
+    // Hash do payload canônico: detecta reuso da mesma chave com dados diferentes.
+    requestHash: text("request_hash").notNull(),
+    // Recurso criado pela requisição original (ex.: id do alerta).
+    resourceId: uuid("resource_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idempotency_keys_user_scope_key_unique").on(table.userId, table.scope, table.key),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
+  alerts: many(emergencyAlerts),
 }));
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
@@ -169,6 +267,25 @@ export const groupInvitationsRelations = relations(groupInvitations, ({ one }) =
   }),
 }));
 
+export const emergencyAlertsRelations = relations(emergencyAlerts, ({ one, many }) => ({
+  group: one(trustedGroups, {
+    fields: [emergencyAlerts.groupId],
+    references: [trustedGroups.id],
+  }),
+  createdBy: one(users, {
+    fields: [emergencyAlerts.createdByUserId],
+    references: [users.id],
+  }),
+  locations: many(alertLocations),
+}));
+
+export const alertLocationsRelations = relations(alertLocations, ({ one }) => ({
+  alert: one(emergencyAlerts, {
+    fields: [alertLocations.alertId],
+    references: [emergencyAlerts.id],
+  }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type AuthSession = typeof authSessions.$inferSelect;
@@ -178,3 +295,7 @@ export type GroupMembership = typeof groupMemberships.$inferSelect;
 export type GroupInvitation = typeof groupInvitations.$inferSelect;
 export type GroupRole = (typeof groupRole.enumValues)[number];
 export type InvitationStatus = (typeof invitationStatus.enumValues)[number];
+export type EmergencyAlert = typeof emergencyAlerts.$inferSelect;
+export type AlertLocation = typeof alertLocations.$inferSelect;
+export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
+export type AlertStatus = (typeof alertStatus.enumValues)[number];

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme/colors";
 import { strings } from "../i18n/pt-BR";
 
@@ -6,10 +6,20 @@ interface ScreenProps {
   title: string;
   onBack?: () => void;
   headerRight?: React.ReactNode;
+  /** Quando informado, habilita "puxar para atualizar". */
+  onRefresh?: () => void;
+  refreshing?: boolean;
   children: React.ReactNode;
 }
 
-export function Screen({ title, onBack, headerRight, children }: ScreenProps): React.JSX.Element {
+export function Screen({
+  title,
+  onBack,
+  headerRight,
+  onRefresh,
+  refreshing = false,
+  children,
+}: ScreenProps): React.JSX.Element {
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -22,7 +32,19 @@ export function Screen({ title, onBack, headerRight, children }: ScreenProps): R
         )}
         {headerRight ?? <View />}
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          ) : undefined
+        }
+      >
         <Text style={styles.title}>{title}</Text>
         {children}
       </ScrollView>

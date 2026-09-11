@@ -14,6 +14,17 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-status-bar", "expo-secure-store"]
+    "plugins": [
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O SafeCircle pode usar sua localização durante um alerta para ajudar seu grupo de confiança a encontrar você.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
+    ]
   }
 }
