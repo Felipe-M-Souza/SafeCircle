@@ -38,14 +38,11 @@ export async function createGroup(
   name: string,
 ): Promise<GroupSummary> {
   return db.transaction(async (tx) => {
-    const [group] = await tx
-      .insert(trustedGroups)
-      .values({ name })
-      .returning({
-        id: trustedGroups.id,
-        name: trustedGroups.name,
-        createdAt: trustedGroups.createdAt,
-      });
+    const [group] = await tx.insert(trustedGroups).values({ name }).returning({
+      id: trustedGroups.id,
+      name: trustedGroups.name,
+      createdAt: trustedGroups.createdAt,
+    });
     if (!group) {
       throw new Error("Falha ao criar grupo.");
     }
