@@ -1,0 +1,47 @@
+---
+description: Regras de PostgreSQL e Drizzle para schema, migrations, integridade, privacidade e consultas.
+globs: apps/api/**/{db,database,drizzle,migrations}/**,**/*schema*.ts,**/*migration*.sql
+alwaysApply: false
+---
+
+# SafeCircle — Banco de dados
+
+## Princípios
+
+Usar constraints quando apropriado:
+- foreign keys;
+- unique;
+- not null;
+- timestamps;
+- índices justificados.
+
+## Migrations
+
+Toda alteração de schema deve gerar migration.
+
+Não editar migration já aplicada como atalho.
+
+## Dados sensíveis
+
+Tratar como sensíveis:
+- localização precisa;
+- telefone;
+- contatos de emergência;
+- push tokens;
+- dados de sessão.
+
+## Localização
+
+Associar localização a uma funcionalidade explícita.
+
+Não reter indefinidamente por padrão.
+
+## Transações
+
+Usar em operações atomicamente relacionadas.
+
+Não manter transação aberta enquanto chama push/mapas externos.
+
+## Dados de teste
+
+Usar somente dados sintéticos.

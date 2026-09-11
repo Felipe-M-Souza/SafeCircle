@@ -1,0 +1,34 @@
+---
+description: Regras de testes automatizados, qualidade, regressão e validação.
+globs: **/*.{ts,tsx,js,jsx},**/*.{test,spec}.{ts,tsx,js,jsx},**/package.json
+alwaysApply: false
+---
+
+# SafeCircle — Testes e qualidade
+
+Mudanças de comportamento exigem testes apropriados.
+
+Não remover testes apenas para deixar CI verde.
+
+Priorizar:
+- unitários para domínio;
+- integração para API/banco;
+- componentes para UI crítica;
+- poucos E2E críticos.
+
+Fluxos prioritários:
+- autenticação;
+- autorização entre grupos;
+- criação de alerta;
+- retries;
+- confirmação;
+- transições;
+- exposição de localização.
+
+Testes devem ser determinísticos.
+
+Não usar serviços push/GPS reais na CI.
+
+Ao corrigir bug, criar teste de regressão quando prático.
+
+Executar scripts reais do repositório para lint, typecheck, testes e build.

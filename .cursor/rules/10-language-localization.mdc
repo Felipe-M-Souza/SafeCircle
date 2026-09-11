@@ -1,0 +1,71 @@
+---
+description: Regras obrigatórias de idioma pt-BR e preparação para internacionalização futura.
+alwaysApply: true
+---
+
+# SafeCircle — Idioma e localização
+
+## Idioma padrão
+
+O SafeCircle nasce em Português do Brasil (`pt-BR`).
+
+Todo conteúdo destinado ao usuário deve ser escrito em português natural e claro.
+
+Inclui:
+- telas;
+- botões;
+- mensagens;
+- erros;
+- notificações;
+- onboarding;
+- estados vazios;
+- confirmações;
+- avisos de segurança.
+
+## Documentação
+
+README, ADRs e documentação funcional devem ser escritos em português.
+
+Termos técnicos podem permanecer no idioma original quando isso for padrão do ecossistema.
+
+## Identificadores internos
+
+Código pode usar identificadores em inglês quando isso melhorar consistência técnica.
+
+Exemplo:
+
+```ts
+createEmergencyAlert()
+trustedGroupId
+```
+
+Interface:
+
+```text
+Acionar alerta
+Grupo de confiança
+```
+
+## Internacionalização futura
+
+Evitar espalhar strings de UI.
+
+Centralizar textos quando prático.
+
+Não misturar regra de negócio com texto traduzido.
+
+Códigos de erro da API devem permanecer estáveis e independentes do idioma.
+
+Exemplo:
+
+```text
+ALERT_NOT_FOUND
+```
+
+A camada de apresentação converte para:
+
+```text
+Alerta não encontrado.
+```
+
+Não implementar infraestrutura excessiva de i18n sem necessidade da fase atual.

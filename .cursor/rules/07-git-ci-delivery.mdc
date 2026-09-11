@@ -1,0 +1,52 @@
+---
+description: Regras de branches, commits, PRs, CI e entrega.
+alwaysApply: false
+---
+
+# SafeCircle — Git, CI e entrega
+
+## Antes
+
+Verificar:
+- `git status`;
+- branch atual;
+- alterações existentes.
+
+Nunca apagar alterações do usuário sem instrução.
+
+## Branches
+
+Usar:
+- `feature/`
+- `fix/`
+- `chore/`
+- `docs/`
+- `test/`
+
+## Commits
+
+Criar commits focados e descritivos.
+
+Exemplos:
+- `feat: adiciona estrutura inicial da API`
+- `fix: evita criação duplicada de alerta`
+- `docs: registra decisão sobre ciclo de alerta`
+
+## Pull Requests
+
+PR deve explicar:
+- objetivo;
+- principais mudanças;
+- validação;
+- migration/configuração;
+- limitações relevantes.
+
+## Merge
+
+Não fazer merge sem instrução explícita.
+
+## CI
+
+Executar os checks existentes sem esconder falhas.
+
+Nunca afirmar push, PR, CI verde ou testes passando sem verificar.

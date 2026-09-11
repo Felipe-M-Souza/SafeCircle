@@ -1,0 +1,61 @@
+---
+description: Convenções da API Fastify, validação, autorização, erros, logs e fluxos de emergência.
+globs: apps/api/**/*.{ts,js,json}
+alwaysApply: false
+---
+
+# SafeCircle — API
+
+## Fluxo
+
+`rota -> validação -> autenticação/autorização -> serviço -> persistência -> resposta`
+
+Rotas devem permanecer enxutas.
+
+## Validação
+
+Validar todos os dados não confiáveis:
+- params;
+- query;
+- body;
+- headers relevantes.
+
+## Autorização
+
+Autenticação responde quem é o usuário.
+Autorização responde o que ele pode fazer.
+
+Impedir IDOR e acesso cruzado entre grupos.
+
+## Erros
+
+Usar códigos estáveis:
+
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `VALIDATION_ERROR`
+- `GROUP_NOT_FOUND`
+- `ALERT_NOT_FOUND`
+- `ALERT_ALREADY_CLOSED`
+- `INVALID_ALERT_TRANSITION`
+
+A UI traduz códigos para mensagens em português.
+
+## Alertas
+
+Persistir o alerta antes de depender de notificações externas.
+
+Falha no push não deve apagar um alerta válido.
+
+## Logs
+
+Nunca registrar:
+- senhas;
+- tokens;
+- headers de autorização;
+- secrets;
+- trilhas completas de localização.
+
+## Testes
+
+Cobrir happy path, validação, não autenticado, não autorizado e transições inválidas.

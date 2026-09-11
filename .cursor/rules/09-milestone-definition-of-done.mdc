@@ -1,0 +1,66 @@
+---
+description: Protocolo obrigatório de execução das fases e Definition of Done.
+alwaysApply: true
+---
+
+# SafeCircle — Fases e Definition of Done
+
+## Antes de implementar
+
+1. Ler README.
+2. Ler regras aplicáveis.
+3. Inspecionar código e Git.
+4. Identificar impacto de segurança/privacidade.
+5. Não expandir escopo.
+
+## Implementação
+
+- Seguir convenções existentes.
+- Manter escopo.
+- Criar migrations quando necessário.
+- Criar/atualizar testes.
+- Atualizar documentação quando comportamento mudar.
+
+## Validação
+
+Executar os scripts reais disponíveis para:
+- lint;
+- typecheck;
+- testes;
+- build.
+
+## Revisão
+
+Antes do commit:
+- revisar diff;
+- procurar secrets;
+- remover debug;
+- conferir autorização;
+- conferir exposição de dados;
+- confirmar ausência de mudanças não relacionadas.
+
+## Entrega
+
+Se houver acesso Git:
+- commit;
+- push;
+- PR;
+- verificar CI;
+- não fazer merge sem instrução.
+
+## Definition of Done
+
+Uma fase só termina quando, quando aplicável:
+- comportamento solicitado está implementado;
+- autorização está no servidor;
+- dados sensíveis foram considerados;
+- validação existe;
+- erros são explícitos;
+- migrations existem;
+- testes existem;
+- lint passa;
+- typecheck passa;
+- build passa;
+- docs estão atualizadas;
+- `.env.example` está atualizado;
+- nenhum secret real está versionado.

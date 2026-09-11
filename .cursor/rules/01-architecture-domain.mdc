@@ -1,0 +1,55 @@
+---
+description: Regras de arquitetura e domínio para alertas, grupos de confiança e fluxos de segurança.
+alwaysApply: false
+---
+
+# SafeCircle — Arquitetura e domínio
+
+## Limites
+
+Separar claramente:
+- UI mobile.
+- Estado/aplicação mobile.
+- Transporte HTTP/realtime.
+- Serviços de aplicação.
+- Domínio.
+- Persistência.
+- Provedores externos.
+
+O backend é autoridade para identidade, autorização, grupos, alertas e transições de estado.
+
+## Conceitos centrais
+
+- `User`
+- `TrustedGroup`
+- `GroupMembership`
+- `EmergencyAlert`
+- `AlertLocation`
+- `AlertAcknowledgement`
+
+Identificadores internos podem permanecer em inglês.
+
+## Ciclo do alerta
+
+Estados iniciais:
+
+`ACTIVE -> RESOLVED`
+`ACTIVE -> CANCELLED`
+
+Não permitir transições arbitrárias.
+
+## Idempotência
+
+Operações críticas sujeitas a retry devem ser desenhadas para evitar duplicação.
+
+Principal exemplo: criação de alerta de emergência.
+
+## Tempo real
+
+Realtime não é fonte de verdade.
+
+O banco deve permitir reconstruir o estado atual mesmo se WebSocket falhar.
+
+## Decisões relevantes
+
+Mudanças arquiteturais significativas devem gerar ADR em português.

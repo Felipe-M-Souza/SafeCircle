@@ -1,0 +1,44 @@
+---
+description: Regras para README, documentação, ADRs e contratos da API.
+globs: README.md,docs/**/*.md,docs/**/*.mdx,**/*.md
+alwaysApply: false
+---
+
+# SafeCircle — Documentação
+
+Documentação funcional deve estar em português.
+
+Não documentar funcionalidade planejada como implementada.
+
+Distinguir:
+- Implementado
+- Em andamento
+- Planejado
+
+## README
+
+Manter:
+- visão do produto;
+- status;
+- stack;
+- setup;
+- ambiente;
+- comandos;
+- segurança;
+- licença quando definida.
+
+## ADR
+
+Escrever em português.
+
+Estrutura sugerida:
+1. Título
+2. Status
+3. Contexto
+4. Decisão
+5. Alternativas
+6. Consequências
+
+## API
+
+Documentar autenticação, request, response, erros e autorização quando os contratos estabilizarem.

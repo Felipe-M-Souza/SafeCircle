@@ -1,0 +1,68 @@
+---
+description: Regras obrigatórias de segurança, privacidade, secrets, autenticação e proteção de localização.
+alwaysApply: true
+---
+
+# SafeCircle — Segurança e privacidade
+
+## Secrets
+
+Nunca hardcodar ou versionar secrets.
+
+Usar `.env` local ou secret manager.
+
+`.env.example` deve conter somente nomes/placeholders seguros.
+
+## Autenticação
+
+Nunca armazenar senha em texto puro.
+
+Não registrar senhas ou tokens em logs.
+
+## Autorização
+
+Negar por padrão.
+
+Trocar um ID na URL nunca pode dar acesso ao grupo de outra pessoa.
+
+## Dados pessoais
+
+Para cada campo sensível, definir:
+- por que existe;
+- quem lê;
+- quem altera;
+- quanto tempo é mantido;
+- se aparece em logs, analytics ou notificações.
+
+## Localização precisa
+
+- Coletar somente em contexto explícito.
+- Limitar frequência.
+- Restringir ao grupo autorizado.
+- Nunca colocar em logs gerais.
+- Interromper coleta quando a sessão terminar.
+
+## Push
+
+Assumir que a notificação pode aparecer na tela bloqueada.
+
+Não incluir coordenadas exatas ou detalhes privados desnecessários.
+
+## Repositório público
+
+Antes de cada commit com configuração:
+- revisar arquivos staged;
+- verificar secrets;
+- garantir `.env` ignorado.
+
+Se um secret foi commitado, considerar comprometido e rotacionar.
+
+## Abuso
+
+Considerar:
+- spam de alertas;
+- spam de convites;
+- acesso indevido;
+- account takeover;
+- stalking por falha de autorização;
+- replay/retry duplicado.

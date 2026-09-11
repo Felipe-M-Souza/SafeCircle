@@ -1,0 +1,57 @@
+---
+description: Regras de React Native/Expo, UX de emergência, permissões, localização e estado mobile.
+globs: apps/mobile/**/*.{ts,tsx,js,jsx,json}
+alwaysApply: false
+---
+
+# SafeCircle — Mobile
+
+## Idioma
+
+Todo texto apresentado ao usuário deve estar em português do Brasil.
+
+Evitar textos espalhados diretamente pelos componentes quando puderem ser centralizados para futura internacionalização.
+
+## UX do SOS
+
+O acionamento deve ser intencional.
+
+Preferir:
+- pressionar e segurar;
+- contagem regressiva;
+- gesto claro e acessível.
+
+Nunca informar "alerta enviado" apenas porque o usuário tocou no botão.
+
+Distinguir:
+- solicitação recebida pelo backend;
+- notificação processada;
+- confirmação por destinatário.
+
+## Permissões
+
+Solicitar apenas quando necessário:
+- localização;
+- notificações.
+
+Tratar:
+- negada;
+- bloqueada;
+- serviço de localização desligado;
+- offline.
+
+## Localização
+
+Não rastrear continuamente por padrão.
+
+Não registrar coordenadas precisas em logs.
+
+Encerrar coleta quando a funcionalidade ativa terminar.
+
+## Armazenamento
+
+Não guardar tokens sensíveis em AsyncStorage simples quando armazenamento seguro estiver disponível.
+
+## Testes
+
+Cobrir fluxos críticos, erros, permissões e estado de alerta ativo.

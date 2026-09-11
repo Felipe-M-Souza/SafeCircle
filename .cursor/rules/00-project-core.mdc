@@ -1,0 +1,54 @@
+---
+description: Regras centrais do SafeCircle, disciplina de escopo, fluxo do repositório e princípios do produto.
+alwaysApply: true
+---
+
+# SafeCircle — Regras centrais
+
+## Objetivo
+
+SafeCircle é um aplicativo mobile de segurança para grupos privados de confiança.
+
+O produto deve permitir que uma pessoa peça ajuda rapidamente a pessoas autorizadas, compartilhando apenas o contexto necessário do incidente.
+
+## Princípios
+
+Sempre:
+
+1. Priorizar segurança, privacidade e minimização de dados.
+2. Respeitar a fase atual.
+3. Não antecipar funcionalidades futuras.
+4. Ler código, testes, schemas, documentação e ADRs antes de alterar arquitetura.
+5. Reutilizar padrões existentes.
+6. Centralizar regras de negócio.
+7. Criar testes para mudanças de comportamento.
+8. Manter CI saudável.
+9. Não afirmar resultados que não foram executados.
+
+## Idioma
+
+- Produto inicial: Português do Brasil (`pt-BR`).
+- Textos apresentados ao usuário: português.
+- Documentação funcional e ADRs: português.
+- Tecnologias, comandos e identificadores internos podem permanecer em inglês quando tecnicamente apropriado.
+- Estruturar textos de UI visando futura internacionalização.
+
+## Repositório público
+
+Nunca versionar:
+- Secrets.
+- `.env` real.
+- Credenciais.
+- Certificados privados.
+- Chaves de assinatura.
+- Dados pessoais reais.
+- Endereços residenciais reais.
+- Telefones reais usados como teste.
+- Coordenadas pessoais reais.
+
+## Fluxo de trabalho
+
+Preferir:
+`main -> branch dedicada -> implementação -> validação -> revisão -> commit -> push -> PR -> CI -> merge manual`
+
+Não fazer merge sem instrução explícita do proprietário.
