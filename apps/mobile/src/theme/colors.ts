@@ -10,4 +10,7 @@ export const colors = {
   mutedText: "#94A3B8",
   accent: "#22C55E",
   border: "#1E293B",
+  danger: "#F87171",
+  inputBackground: "#0B1220",
+  disabled: "#1E293B",
 } as const;
