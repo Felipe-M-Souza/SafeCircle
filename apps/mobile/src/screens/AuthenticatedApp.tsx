@@ -6,9 +6,11 @@ import { CreateGroupScreen } from "./groups/CreateGroupScreen";
 import { GroupDetailsScreen } from "./groups/GroupDetailsScreen";
 import { InviteScreen } from "./groups/InviteScreen";
 import { ReceivedInvitationsScreen } from "./groups/ReceivedInvitationsScreen";
+import { ActiveAlertsScreen } from "./alerts/ActiveAlertsScreen";
+import { AlertDetailsScreen } from "./alerts/AlertDetailsScreen";
 
 /**
- * Navegação leve baseada em pilha para a área autenticada (Phase 2).
+ * Navegação leve baseada em pilha para a área autenticada (Phase 2/3).
  * Mantém a solução simples, sem adicionar bibliotecas de navegação.
  */
 export function AuthenticatedApp(): React.JSX.Element {
@@ -37,6 +39,16 @@ export function AuthenticatedApp(): React.JSX.Element {
       return <InviteScreen nav={nav} groupId={current.groupId} groupName={current.groupName} />;
     case "invitations":
       return <ReceivedInvitationsScreen nav={nav} />;
+    case "activeAlerts":
+      return <ActiveAlertsScreen nav={nav} />;
+    case "alertDetails":
+      return (
+        <AlertDetailsScreen
+          nav={nav}
+          alertId={current.alertId}
+          justActivated={current.justActivated ?? false}
+        />
+      );
     case "home":
     default:
       return <AuthenticatedHomeScreen nav={nav} />;

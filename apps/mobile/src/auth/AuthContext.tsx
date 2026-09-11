@@ -4,7 +4,7 @@ import { secureStorage } from "../lib/storage";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
-interface AuthContextValue {
+export interface AuthContextValue {
   status: AuthStatus;
   user: AuthUser | null;
   /** Falso na web (sessão apenas em memória, não persiste após reload). */
@@ -16,7 +16,8 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+/** Exportado para permitir injetar um valor de teste nas telas. */
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [status, setStatus] = useState<AuthStatus>("loading");
