@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
+import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
 import { authRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
 import {
@@ -79,12 +80,23 @@ export async function groupsRoutes(
     return listMembers(app.db, request.auth.userId, groupId);
   });
 
+  // Phase 5: avisa o usuário afetado para ressincronizar grupos/permissões.
+  const notifyMembershipChanged = (userId: string, groupId: string) => {
+    app.background.run("realtime:GROUP_MEMBERSHIP_CHANGED", async () => {
+      app.realtime.publishToUser(
+        userId,
+        createRealtimeEvent("GROUP_MEMBERSHIP_CHANGED", { groupId, userId }),
+      );
+    });
+  };
+
   app.delete("/groups/:groupId/members/me", async (request, reply) => {
     const groupId = parseUuid(
       (request.params as { groupId: string }).groupId,
       errors.groupNotFound,
     );
     await leaveGroup(app.db, request.auth.userId, groupId);
+    notifyMembershipChanged(request.auth.userId, groupId);
     return reply.status(204).send();
   });
 
@@ -93,6 +105,7 @@ export async function groupsRoutes(
     const groupId = parseUuid(params.groupId, errors.groupNotFound);
     const targetUserId = parseUuid(params.userId, errors.memberNotFound);
     await removeMember(app.db, request.auth.userId, groupId, targetUserId);
+    notifyMembershipChanged(targetUserId, groupId);
     return reply.status(204).send();
   });
 

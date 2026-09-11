@@ -26,6 +26,19 @@ export const listAlertsQuerySchema = z.object({
   status: z.enum(alertStatusValues).optional(),
 });
 
+// Phase 5 — acknowledgements
+export const acknowledgementTypeValues = [
+  "SEEN",
+  "ACKNOWLEDGED",
+  "GOING_TO_HELP",
+  "EMERGENCY_SERVICES_CONTACTED",
+] as const;
+
+export const setAcknowledgementSchema = z.object({
+  type: z.enum(acknowledgementTypeValues),
+});
+
+export type SetAcknowledgementInput = z.infer<typeof setAcknowledgementSchema>;
 export type AlertLocationInput = z.infer<typeof alertLocationInputSchema>;
 export type CreateAlertInput = z.infer<typeof createAlertSchema>;
 export type ListAlertsQuery = z.infer<typeof listAlertsQuerySchema>;

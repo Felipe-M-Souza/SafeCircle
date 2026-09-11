@@ -41,7 +41,9 @@ export type ErrorCode =
   | "INVALID_PUSH_TOKEN"
   | "INVALID_DEVICE_ID"
   | "INVALID_PUSH_PLATFORM"
-  | "PUSH_DEVICE_NOT_FOUND";
+  | "PUSH_DEVICE_NOT_FOUND"
+  // Phase 5 — Tempo Real / acknowledgements
+  | "ALERT_NOT_ACTIVE";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -116,4 +118,7 @@ export const errors = {
     new AppError("INVALID_PUSH_PLATFORM", 400, "Plataforma de push inválida."),
   pushDeviceNotFound: () =>
     new AppError("PUSH_DEVICE_NOT_FOUND", 404, "Dispositivo de push não encontrado."),
+
+  // Phase 5 — Tempo Real / acknowledgements
+  alertNotActive: () => new AppError("ALERT_NOT_ACTIVE", 409, "Este alerta não está mais ativo."),
 };
