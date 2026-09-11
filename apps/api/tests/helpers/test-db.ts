@@ -52,13 +52,19 @@ export async function ensureTestDatabase(): Promise<void> {
 }
 
 /**
- * Cliente auxiliar para limpar as tabelas entre testes.
+ * Cliente auxiliar para limpar as tabelas entre testes. Expõe também o cliente
+ * SQL bruto para asserções diretas no banco (ex.: constraints e persistência).
  */
-export function createCleaner(): { truncate: () => Promise<void>; close: () => Promise<void> } {
+export function createCleaner(): {
+  sql: postgres.Sql;
+  truncate: () => Promise<void>;
+  close: () => Promise<void>;
+} {
   const sql = postgres(getTestDatabaseUrl(), { max: 1 });
   return {
+    sql,
     truncate: async () => {
-      await sql`TRUNCATE TABLE group_invitations, group_memberships, trusted_groups, auth_sessions, users RESTART IDENTITY CASCADE`;
+      await sql`TRUNCATE TABLE alert_locations, emergency_alerts, idempotency_keys, group_invitations, group_memberships, trusted_groups, auth_sessions, users RESTART IDENTITY CASCADE`;
     },
     close: async () => {
       await sql.end({ timeout: 5 });
