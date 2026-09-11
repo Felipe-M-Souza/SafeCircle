@@ -8,6 +8,8 @@ import { rateLimitPlugin } from "./plugins/rate-limit.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
+import { groupsRoutes } from "./modules/groups/groups.routes.js";
+import { meInvitationsRoutes } from "./modules/groups/me-invitations.routes.js";
 
 export interface BuildAppOptions {
   logger?: boolean;
@@ -64,6 +66,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(databasePlugin, { databaseUrl });
     await app.register(authRoutes, { appConfig: config });
     await app.register(usersRoutes, { appConfig: config });
+    await app.register(groupsRoutes, { appConfig: config });
+    await app.register(meInvitationsRoutes);
   } else {
     app.log.warn("DATABASE_URL ausente: rotas de autenticação não registradas.");
   }
