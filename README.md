@@ -2,6 +2,32 @@
 
 > Rede privada de segurança para grupos de confiança, alertas de emergência, contexto do incidente e acompanhamento de segurança.
 
+## Como executar localmente
+
+Pré-requisitos: Node.js 22, `pnpm` (via `corepack enable`) e PostgreSQL.
+Em Cloud Agents, o ambiente já provê tudo (ver `.cursor/environment.json`).
+
+```bash
+pnpm install                 # instala o monorepo
+cp .env.example .env         # variáveis locais (o .env real não é versionado)
+pnpm db:start                # sobe um PostgreSQL local self-contained
+pnpm --filter @safecircle/api db:migrate   # aplica as migrations
+pnpm dev:api                 # API em http://localhost:3000  (GET /health)
+pnpm dev:mobile              # app mobile na web em http://localhost:8081
+```
+
+Validação e utilitários:
+
+```bash
+pnpm validate                # lint + format + typecheck + testes + build
+pnpm db:check                # verifica a conexão PostgreSQL (Drizzle)
+pnpm --filter @safecircle/api test   # testes de integração (usa PostgreSQL)
+```
+
+**Status:** Phase 0 (Fundação) concluída. Phase 1 (Autenticação) implementada:
+cadastro, login, `/me`, refresh com rotação e logout no backend, e telas de
+Login/Cadastro com sessão no app mobile.
+
 ## 1. Visão geral
 
 O **SafeCircle** é um aplicativo mobile de segurança pessoal criado para permitir que uma pessoa peça ajuda rapidamente a uma rede privada de pessoas de confiança quando se sentir em risco ou precisar de auxílio.
