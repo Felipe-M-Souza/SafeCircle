@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.expo
+coverage
+drizzle
+pnpm-lock.yaml
+
+# Documentos autorais mantidos como escritos
+README.md
+.cursor/rules
