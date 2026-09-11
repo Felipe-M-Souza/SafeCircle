@@ -140,6 +140,17 @@ export interface CreateAlertInput {
   location?: AlertLocationInput | null;
 }
 
+// --- Acknowledgements (Phase 5) ---
+
+export type AcknowledgementType =
+  "SEEN" | "ACKNOWLEDGED" | "GOING_TO_HELP" | "EMERGENCY_SERVICES_CONTACTED";
+
+export interface AlertAcknowledgement {
+  user: { id: string; name: string };
+  type: AcknowledgementType;
+  updatedAt: string;
+}
+
 // --- Notificações Push (Phase 4) ---
 
 export type PushPlatform = "IOS" | "ANDROID";
@@ -292,6 +303,14 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     cancelAlert(alertId: string): Promise<EmergencyAlert> {
       return authed<EmergencyAlert>("POST", `/alerts/${alertId}/cancel`);
+    },
+
+    // --- Acknowledgements (Phase 5) ---
+    listAcknowledgements(alertId: string): Promise<AlertAcknowledgement[]> {
+      return authed<AlertAcknowledgement[]>("GET", `/alerts/${alertId}/acknowledgements`);
+    },
+    setAcknowledgement(alertId: string, type: AcknowledgementType): Promise<AlertAcknowledgement> {
+      return authed<AlertAcknowledgement>("PUT", `/alerts/${alertId}/acknowledgement`, { type });
     },
 
     // --- Notificações Push (Phase 4) ---

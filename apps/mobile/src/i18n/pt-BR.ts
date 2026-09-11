@@ -86,6 +86,26 @@ export const ptBR = {
     openSettings: "Abrir configurações",
     unavailable: "Notificações push não estão disponíveis nesta plataforma.",
   },
+  acknowledgements: {
+    sectionTitle: "Respostas do grupo",
+    empty: "Nenhuma resposta do grupo ainda.",
+    seen: "VI O ALERTA",
+    goingToHelp: "ESTOU INDO AJUDAR",
+    emergencyContacted: "ACIONEI EMERGÊNCIA",
+    yourResponse: "Sua resposta",
+    safetyNote:
+      "Evite confronto direto. Em risco imediato, acione os serviços oficiais de emergência.",
+    closedNote: "O alerta foi encerrado. Novas respostas não são aceitas.",
+    types: {
+      SEEN: "Viu o alerta",
+      ACKNOWLEDGED: "Confirmou o alerta",
+      GOING_TO_HELP: "Está indo ajudar",
+      EMERGENCY_SERVICES_CONTACTED: "Acionou serviço de emergência",
+    } as Record<string, string>,
+  },
+  realtime: {
+    reconnecting: "Reconectando às atualizações em tempo real...",
+  },
   alertStatus: {
     ACTIVE: "ATIVO",
     RESOLVED: "RESOLVIDO",
@@ -229,6 +249,8 @@ export const ptBR = {
     INVALID_DEVICE_ID: "Não foi possível ativar as notificações neste aparelho.",
     INVALID_PUSH_PLATFORM: "Notificações push não estão disponíveis nesta plataforma.",
     PUSH_DEVICE_NOT_FOUND: "Dispositivo de notificações não encontrado.",
+    // Phase 5 — Tempo Real / respostas do grupo
+    ALERT_NOT_ACTIVE: "Este alerta não está mais ativo.",
   } as Record<string, string>,
 } as const;
 

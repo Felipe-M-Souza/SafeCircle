@@ -8,6 +8,8 @@ import { strings, translateErrorCode } from "../i18n/pt-BR";
 import { ApiError, type EmergencyAlert, type GroupSummary } from "../lib/api";
 import { generateIdempotencyKey } from "../lib/idempotency";
 import { captureInitialLocation } from "../lib/location";
+import { isAlertEvent, type RealtimeEvent } from "../realtime/events";
+import { useRealtimeEvents } from "../realtime/RealtimeProvider";
 import { colors } from "../theme/colors";
 import type { Nav } from "../navigation/types";
 
@@ -72,6 +74,17 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Phase 5: eventos de alerta/grupo e cada (re)conexão recarregam pela API.
+  const onRealtimeEvent = useCallback(
+    (event: RealtimeEvent) => {
+      if (isAlertEvent(event) || event.type === "GROUP_MEMBERSHIP_CHANGED") {
+        void load();
+      }
+    },
+    [load],
+  );
+  useRealtimeEvents(onRealtimeEvent, load);
 
   const selectedGroup = groups?.find((group) => group.id === selectedGroupId) ?? null;
   const ownActiveAlert = selectedGroup

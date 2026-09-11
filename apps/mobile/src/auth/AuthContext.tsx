@@ -11,6 +11,12 @@ export interface AuthContextValue {
   sessionPersistent: boolean;
   /** Cliente HTTP autenticado (com auto-refresh) para chamadas protegidas. */
   api: ApiClient;
+  /** Access token atual (para o handshake do WebSocket). Nunca logar. */
+  getAccessToken: () => string | null;
+  /** Renova o access token (single-flight); null se a sessão acabou. */
+  refreshAccessToken: () => Promise<string | null>;
+  /** Incrementa sempre que o access token muda (login, refresh, logout). */
+  accessTokenVersion: number;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -31,6 +37,7 @@ export interface AuthProviderProps {
 export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): React.JSX.Element {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [accessTokenVersion, setAccessTokenVersion] = useState(0);
 
   const accessTokenRef = useRef<string | null>(null);
   const refreshingRef = useRef<Promise<string | null> | null>(null);
@@ -38,6 +45,7 @@ export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): Re
 
   const clearSession = useCallback(async () => {
     accessTokenRef.current = null;
+    setAccessTokenVersion((version) => version + 1);
     await secureStorage.clearRefreshToken();
     setUser(null);
     setStatus("unauthenticated");
@@ -58,6 +66,7 @@ export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): Re
       try {
         const tokens = await client.refresh(refreshToken);
         accessTokenRef.current = tokens.accessToken;
+        setAccessTokenVersion((version) => version + 1);
         await secureStorage.setRefreshToken(tokens.refreshToken);
         return tokens.accessToken;
       } catch {
@@ -82,6 +91,7 @@ export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): Re
   const applySession = useCallback(
     async (accessToken: string, refreshToken: string, nextUser: AuthUser) => {
       accessTokenRef.current = accessToken;
+      setAccessTokenVersion((version) => version + 1);
       await secureStorage.setRefreshToken(refreshToken);
       setUser(nextUser);
       setStatus("authenticated");
@@ -164,6 +174,9 @@ export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): Re
         user,
         sessionPersistent: secureStorage.persistent,
         api,
+        getAccessToken: () => accessTokenRef.current,
+        refreshAccessToken: doRefresh,
+        accessTokenVersion,
         signIn,
         signUp,
         signOut,
