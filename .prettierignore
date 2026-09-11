@@ -9,3 +9,6 @@ pnpm-lock.yaml
 # Documentos autorais mantidos como escritos
 README.md
 .cursor/rules
+
+# Gerenciado automaticamente pelo Expo (campo include reescrito a cada start)
+apps/mobile/tsconfig.json
