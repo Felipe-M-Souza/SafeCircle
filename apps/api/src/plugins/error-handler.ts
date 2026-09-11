@@ -57,6 +57,13 @@ export const errorHandlerPlugin = fp(
         return reply.status(401).send({ code: "UNAUTHORIZED", message: "Não autenticado." });
       }
 
+      // Corpo malformado / content-type ou tamanho inválidos (parser do Fastify):
+      // erro do cliente, nunca 500 — e sem ecoar o corpo recebido.
+      if (statusCode === 400 || statusCode === 413 || statusCode === 415) {
+        const body: ErrorResponse = { code: "VALIDATION_ERROR", message: "Requisição inválida." };
+        return reply.status(400).send(body);
+      }
+
       // Qualquer outro erro é interno: logar completo, responder genérico.
       request.log.error({ err: error }, "Erro não tratado");
       const body: ErrorResponse = {

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { errors } from "../../shared/errors.js";
 import { parseIdempotencyKey } from "../../shared/idempotency.js";
+import { notifyAlertCreated } from "../notifications/alert-notifications.service.js";
 import { createAlertSchema, listAlertsQuerySchema } from "./alerts.schemas.js";
 import { cancelAlert, createAlert, getAlert, listAlerts, resolveAlert } from "./alerts.service.js";
 
@@ -20,8 +21,8 @@ function parseAlertId(value: unknown): string {
  * Rotas do Alerta de Emergência (Phase 3).
  *
  * Fluxo: autenticar → validar payload → validar Idempotency-Key → serviço
- * (membership, idempotência, criação atômica) → estado persistido.
- * Nenhum serviço externo (push, mapas) é chamado nesta fase.
+ * (membership, idempotência, criação atômica) → estado persistido → push em
+ * segundo plano (Phase 4), desacoplado do sucesso da criação.
  */
 export async function alertsRoutes(app: FastifyInstance): Promise<void> {
   // Todas as rotas de alertas exigem autenticação.
@@ -38,6 +39,16 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
     );
     if (replayed) {
       reply.header("Idempotent-Replayed", "true");
+    } else {
+      // Phase 4: o alerta já está persistido (commit concluído). O push roda em
+      // segundo plano e nunca influencia esta resposta nem desfaz o alerta.
+      const userId = request.auth.userId;
+      app.background.run("alert-notifications", () =>
+        notifyAlertCreated(
+          { db: app.db, pushProvider: app.pushProvider, log: request.log },
+          { id: alert.id, groupId: alert.groupId, createdByUserId: userId },
+        ),
+      );
     }
     return reply.status(201).send(alert);
   });
