@@ -58,7 +58,7 @@ export function createCleaner(): { truncate: () => Promise<void>; close: () => P
   const sql = postgres(getTestDatabaseUrl(), { max: 1 });
   return {
     truncate: async () => {
-      await sql`TRUNCATE TABLE auth_sessions, users RESTART IDENTITY CASCADE`;
+      await sql`TRUNCATE TABLE group_invitations, group_memberships, trusted_groups, auth_sessions, users RESTART IDENTITY CASCADE`;
     },
     close: async () => {
       await sql.end({ timeout: 5 });
