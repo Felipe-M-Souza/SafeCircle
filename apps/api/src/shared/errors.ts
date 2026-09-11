@@ -28,7 +28,15 @@ export type ErrorCode =
   | "OWNER_CANNOT_LEAVE_GROUP"
   | "CANNOT_REMOVE_OWNER"
   | "INVALID_GROUP_ROLE"
-  | "MEMBER_NOT_FOUND";
+  | "MEMBER_NOT_FOUND"
+  // Genérico: autenticado, mas sem permissão para a ação (README §16).
+  | "FORBIDDEN"
+  // Phase 3 — Alerta de Emergência
+  | "ALERT_NOT_FOUND"
+  | "ALERT_ALREADY_ACTIVE"
+  | "INVALID_ALERT_TRANSITION"
+  | "INVALID_IDEMPOTENCY_KEY"
+  | "IDEMPOTENCY_KEY_REUSED";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -77,4 +85,21 @@ export const errors = {
     new AppError("CANNOT_REMOVE_OWNER", 403, "Não é possível remover o proprietário."),
   invalidGroupRole: () => new AppError("INVALID_GROUP_ROLE", 400, "Papel de grupo inválido."),
   memberNotFound: () => new AppError("MEMBER_NOT_FOUND", 404, "Membro não encontrado."),
+
+  forbidden: () => new AppError("FORBIDDEN", 403, "Você não tem permissão para esta ação."),
+
+  // Phase 3 — Alerta de Emergência
+  alertNotFound: () => new AppError("ALERT_NOT_FOUND", 404, "Alerta não encontrado."),
+  alertAlreadyActive: () =>
+    new AppError("ALERT_ALREADY_ACTIVE", 409, "Você já possui um alerta ativo neste grupo."),
+  invalidAlertTransition: () =>
+    new AppError("INVALID_ALERT_TRANSITION", 409, "Transição de estado do alerta inválida."),
+  invalidIdempotencyKey: () =>
+    new AppError("INVALID_IDEMPOTENCY_KEY", 400, "Cabeçalho Idempotency-Key ausente ou inválido."),
+  idempotencyKeyReused: () =>
+    new AppError(
+      "IDEMPOTENCY_KEY_REUSED",
+      409,
+      "Idempotency-Key já utilizada com uma requisição diferente.",
+    ),
 };

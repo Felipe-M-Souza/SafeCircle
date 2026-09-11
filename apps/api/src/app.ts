@@ -10,6 +10,7 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { groupsRoutes } from "./modules/groups/groups.routes.js";
 import { meInvitationsRoutes } from "./modules/groups/me-invitations.routes.js";
+import { alertsRoutes } from "./modules/alerts/alerts.routes.js";
 
 export interface BuildAppOptions {
   logger?: boolean;
@@ -37,13 +38,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: options.logger
       ? {
-          // Nunca registrar dados sensíveis (README §15): senhas, tokens, headers.
+          // Nunca registrar dados sensíveis (README §15): senhas, tokens, headers,
+          // localização precisa (Phase 3).
           redact: {
             paths: [
               "req.headers.authorization",
               "req.headers.cookie",
+              "req.headers.idempotency-key",
               "req.body.password",
               "req.body.refreshToken",
+              "req.body.location",
             ],
             remove: true,
           },
@@ -68,6 +72,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(usersRoutes, { appConfig: config });
     await app.register(groupsRoutes, { appConfig: config });
     await app.register(meInvitationsRoutes);
+    await app.register(alertsRoutes);
   } else {
     app.log.warn("DATABASE_URL ausente: rotas de autenticação não registradas.");
   }
