@@ -24,6 +24,13 @@
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F87171",
+          "defaultChannel": "emergency"
+        }
       ]
     ]
   }

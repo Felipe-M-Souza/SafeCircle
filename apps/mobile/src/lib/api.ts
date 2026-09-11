@@ -140,6 +140,27 @@ export interface CreateAlertInput {
   location?: AlertLocationInput | null;
 }
 
+// --- Notificações Push (Phase 4) ---
+
+export type PushPlatform = "IOS" | "ANDROID";
+
+export interface RegisterPushDeviceInput {
+  /** Expo Push Token — nunca logar nem exibir. */
+  token: string;
+  platform: PushPlatform;
+  /** UUID de instalação gerado pelo app. */
+  deviceId: string;
+}
+
+/** Resposta do backend: o token nunca é devolvido. */
+export interface PushDeviceView {
+  id: string;
+  platform: PushPlatform;
+  deviceId: string;
+  isActive: boolean;
+  updatedAt: string;
+}
+
 interface AuthedOptions {
   headers?: Record<string, string>;
 }
@@ -271,6 +292,14 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     cancelAlert(alertId: string): Promise<EmergencyAlert> {
       return authed<EmergencyAlert>("POST", `/alerts/${alertId}/cancel`);
+    },
+
+    // --- Notificações Push (Phase 4) ---
+    registerPushDevice(input: RegisterPushDeviceInput): Promise<PushDeviceView> {
+      return authed<PushDeviceView>("POST", "/me/push-devices", input);
+    },
+    unregisterPushDevice(deviceId: string): Promise<void> {
+      return authed<void>("DELETE", `/me/push-devices/${deviceId}`);
     },
   };
 }

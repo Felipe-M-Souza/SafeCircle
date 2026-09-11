@@ -19,7 +19,16 @@ export interface AuthContextValue {
 /** Exportado para permitir injetar um valor de teste nas telas. */
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+export interface AuthProviderProps {
+  children: React.ReactNode;
+  /**
+   * Executado antes de encerrar a sessão (ex.: desativar o push device no
+   * backend). Best-effort: qualquer falha é ignorada e o logout prossegue.
+   */
+  beforeSignOut?: (api: ApiClient) => Promise<void>;
+}
+
+export function AuthProvider({ children, beforeSignOut }: AuthProviderProps): React.JSX.Element {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -97,6 +106,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   );
 
   const signOut = useCallback(async () => {
+    if (beforeSignOut) {
+      try {
+        // Ainda autenticado: desassocia o dispositivo de push, se houver.
+        await beforeSignOut(clientRef.current!);
+      } catch {
+        // Falha de push nunca impede o logout.
+      }
+    }
     const refreshToken = await secureStorage.getRefreshToken();
     if (refreshToken) {
       try {
@@ -106,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       }
     }
     await clearSession();
-  }, [clearSession]);
+  }, [beforeSignOut, clearSession]);
 
   // Restauração de sessão ao abrir o app (README §16).
   useEffect(() => {
