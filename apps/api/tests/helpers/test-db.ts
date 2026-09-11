@@ -64,7 +64,7 @@ export function createCleaner(): {
   return {
     sql,
     truncate: async () => {
-      await sql`TRUNCATE TABLE alert_locations, emergency_alerts, idempotency_keys, group_invitations, group_memberships, trusted_groups, auth_sessions, users RESTART IDENTITY CASCADE`;
+      await sql`TRUNCATE TABLE push_devices, alert_locations, emergency_alerts, idempotency_keys, group_invitations, group_memberships, trusted_groups, auth_sessions, users RESTART IDENTITY CASCADE`;
     },
     close: async () => {
       await sql.end({ timeout: 5 });
