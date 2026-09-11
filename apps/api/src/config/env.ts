@@ -9,22 +9,29 @@ import { z } from "zod";
 // em produção o segredo é obrigatório e validado abaixo.
 const DEV_JWT_ACCESS_SECRET = "dev-only-insecure-jwt-access-secret-change-me";
 
+// Trata strings vazias (comuns em `.env.example`) como "não definidas".
+const emptyToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().positive().default(3000),
     HOST: z.string().default("0.0.0.0"),
     // Opcional: a API sobe e responde /health mesmo sem banco configurado.
-    DATABASE_URL: z.string().url().optional(),
+    DATABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
 
     // Autenticação (Phase 1)
-    JWT_ACCESS_SECRET: z.string().min(1).optional(),
-    JWT_ACCESS_TTL: z.string().min(1).default("15m"),
-    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+    JWT_ACCESS_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    JWT_ACCESS_TTL: z.preprocess(emptyToUndefined, z.string().min(1).default("15m")),
+    REFRESH_TOKEN_TTL_DAYS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().positive().default(30),
+    ),
 
     // Origens permitidas para CORS em produção (lista separada por vírgula).
     // Em dev/test o CORS reflete a origem da requisição para facilitar o app web.
-    CORS_ORIGINS: z.string().optional(),
+    CORS_ORIGINS: z.preprocess(emptyToUndefined, z.string().optional()),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production") {
