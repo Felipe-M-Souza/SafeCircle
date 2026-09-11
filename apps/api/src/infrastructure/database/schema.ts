@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   doublePrecision,
   index,
   pgEnum,
@@ -18,6 +19,7 @@ import {
  * e `group_invitations`.
  * Phase 3 — Alerta de Emergência: introduz `emergency_alerts`, `alert_locations`
  * e `idempotency_keys`.
+ * Phase 4 — Notificações Push: introduz `push_devices`.
  * Identificadores internos permanecem em inglês por consistência técnica.
  */
 
@@ -227,10 +229,57 @@ export const idempotencyKeys = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 4 — Notificações Push
+// ------------------------------------------------------------------
+
+export const pushPlatform = pgEnum("push_platform", ["IOS", "ANDROID"]);
+
+/**
+ * Registro de push por instalação do app (Phase 4).
+ *
+ * - `token`: Expo Push Token — dado sensível, único e pertencente a um único
+ *   usuário por vez (nunca devolvido pela API nem registrado em logs).
+ * - `deviceId`: UUID de instalação gerado pelo próprio app (sem IMEI, MAC ou
+ *   advertising ID); um registro por (usuário, instalação).
+ * - `isActive`: tokens inválidos são desativados sem apagar o registro.
+ */
+export const pushDevices = pgTable(
+  "push_devices",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    platform: pushPlatform("platform").notNull(),
+    deviceId: uuid("device_id").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("push_devices_token_unique").on(table.token),
+    uniqueIndex("push_devices_user_device_unique").on(table.userId, table.deviceId),
+    index("push_devices_user_id_idx").on(table.userId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
   alerts: many(emergencyAlerts),
+  pushDevices: many(pushDevices),
+}));
+
+export const pushDevicesRelations = relations(pushDevices, ({ one }) => ({
+  user: one(users, {
+    fields: [pushDevices.userId],
+    references: [users.id],
+  }),
 }));
 
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
@@ -299,3 +348,5 @@ export type EmergencyAlert = typeof emergencyAlerts.$inferSelect;
 export type AlertLocation = typeof alertLocations.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
 export type AlertStatus = (typeof alertStatus.enumValues)[number];
+export type PushDevice = typeof pushDevices.$inferSelect;
+export type PushPlatform = (typeof pushPlatform.enumValues)[number];

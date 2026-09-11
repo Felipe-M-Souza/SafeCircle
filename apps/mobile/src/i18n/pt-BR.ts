@@ -68,6 +68,24 @@ export const ptBR = {
     locationPermissionRationale:
       "O SafeCircle pode usar sua localização durante um alerta para ajudar seu grupo de confiança a encontrar você.",
   },
+  notifications: {
+    title: "Notificações",
+    description: "Receba alertas quando alguém do seu grupo pedir ajuda.",
+    statusLabel: "Status",
+    statusEnabled: "Ativadas",
+    statusDisabled: "Desativadas",
+    promptTitle: "Ative as notificações",
+    promptBody:
+      "O SafeCircle usa notificações para avisar quando alguém do seu grupo de confiança pedir ajuda.",
+    enable: "Ativar notificações",
+    notNow: "Agora não",
+    deniedTitle: "Notificações desativadas",
+    deniedBody: "Sem notificações, você só verá os alertas ao abrir o SafeCircle.",
+    tryAgain: "Tentar novamente",
+    blockedBody: "Ative as notificações nas configurações do aparelho para receber alertas.",
+    openSettings: "Abrir configurações",
+    unavailable: "Notificações push não estão disponíveis nesta plataforma.",
+  },
   alertStatus: {
     ACTIVE: "ATIVO",
     RESOLVED: "RESOLVIDO",
@@ -206,6 +224,11 @@ export const ptBR = {
     INVALID_ALERT_TRANSITION: "Este alerta já foi encerrado.",
     INVALID_IDEMPOTENCY_KEY: "Não foi possível registrar o alerta. Tente novamente.",
     IDEMPOTENCY_KEY_REUSED: "Não foi possível registrar o alerta. Tente novamente.",
+    // Phase 4 — Notificações Push
+    INVALID_PUSH_TOKEN: "Não foi possível ativar as notificações neste aparelho.",
+    INVALID_DEVICE_ID: "Não foi possível ativar as notificações neste aparelho.",
+    INVALID_PUSH_PLATFORM: "Notificações push não estão disponíveis nesta plataforma.",
+    PUSH_DEVICE_NOT_FOUND: "Dispositivo de notificações não encontrado.",
   } as Record<string, string>,
 } as const;
 

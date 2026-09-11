@@ -36,7 +36,12 @@ export type ErrorCode =
   | "ALERT_ALREADY_ACTIVE"
   | "INVALID_ALERT_TRANSITION"
   | "INVALID_IDEMPOTENCY_KEY"
-  | "IDEMPOTENCY_KEY_REUSED";
+  | "IDEMPOTENCY_KEY_REUSED"
+  // Phase 4 — Notificações Push
+  | "INVALID_PUSH_TOKEN"
+  | "INVALID_DEVICE_ID"
+  | "INVALID_PUSH_PLATFORM"
+  | "PUSH_DEVICE_NOT_FOUND";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -102,4 +107,13 @@ export const errors = {
       409,
       "Idempotency-Key já utilizada com uma requisição diferente.",
     ),
+
+  // Phase 4 — Notificações Push
+  invalidPushToken: () => new AppError("INVALID_PUSH_TOKEN", 400, "Push token inválido."),
+  invalidDeviceId: () =>
+    new AppError("INVALID_DEVICE_ID", 400, "Identificador de dispositivo inválido."),
+  invalidPushPlatform: () =>
+    new AppError("INVALID_PUSH_PLATFORM", 400, "Plataforma de push inválida."),
+  pushDeviceNotFound: () =>
+    new AppError("PUSH_DEVICE_NOT_FOUND", 404, "Dispositivo de push não encontrado."),
 };

@@ -25,14 +25,22 @@ pnpm --filter @safecircle/api test      # testes de integração (usa PostgreSQL
 pnpm --filter @safecircle/mobile test   # testes do app mobile (Jest + jest-expo, sem GPS real)
 ```
 
-**Status:** Phase 0 (Fundação), Phase 1 (Autenticação) e Phase 2 (Grupos de
-Confiança) concluídas. Phase 3 (Alerta de Emergência) implementada: criação
-idempotente de alertas (`POST /alerts` com `Idempotency-Key`), localização
-inicial opcional, um alerta ativo por usuário/grupo garantido no banco,
-consulta por membros do grupo, resolução/cancelamento pelo criador e, no app,
-botão SOS com pressionar-e-segurar, seleção de grupo, lista de alertas ativos
-e tela do alerta. Ainda **sem** push, realtime, mapa ou confirmações de
-recebimento (próximas fases).
+**Status:** Phases 0 a 3 concluídas (Fundação, Autenticação, Grupos de
+Confiança e Alerta de Emergência com `POST /alerts` idempotente, localização
+inicial opcional e botão SOS pressionar-e-segurar). Phase 4 (Notificações
+Push) implementada: registro de dispositivos (`POST/DELETE /me/push-devices`),
+envio via Expo Push API em segundo plano após o commit do alerta (a criação
+nunca depende do push), conteúdo mínimo sem dados sensíveis, desativação de
+tokens inválidos e, no app, permissão com contexto, registro após login e
+abertura do alerta ao tocar na notificação. Ainda **sem** realtime, mapa ou
+confirmações de recebimento (próximas fases).
+
+**Push (requisitos):** notificações funcionam apenas em build nativo
+(iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push
+Token em builds EAS, configure o `projectId` público em `apps/mobile/app.json`
+(`expo.extra.eas.projectId`); credenciais FCM/APNs ficam na conta Expo/EAS,
+nunca neste repositório. No backend, `EXPO_ACCESS_TOKEN` (opcional, segredo)
+autentica o envio na Expo Push API. Ver ADR 0005.
 
 ## 1. Visão geral
 

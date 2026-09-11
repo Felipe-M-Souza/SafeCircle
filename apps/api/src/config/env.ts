@@ -32,6 +32,10 @@ const envSchema = z
     // Origens permitidas para CORS em produção (lista separada por vírgula).
     // Em dev/test o CORS reflete a origem da requisição para facilitar o app web.
     CORS_ORIGINS: z.preprocess(emptyToUndefined, z.string().optional()),
+
+    // Notificações push (Phase 4): token de acesso opcional da Expo Push API.
+    // Segredo do backend — NUNCA versionar nem expor ao app.
+    EXPO_ACCESS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production") {
@@ -54,6 +58,7 @@ export interface Config {
   jwtAccessTtl: string;
   refreshTokenTtlDays: number;
   corsOrigins?: string[];
+  expoAccessToken?: string;
 }
 
 let cachedConfig: Config | null = null;
@@ -84,6 +89,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     corsOrigins: env.CORS_ORIGINS?.split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),
+    expoAccessToken: env.EXPO_ACCESS_TOKEN,
   };
 
   return cachedConfig;
