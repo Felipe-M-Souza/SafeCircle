@@ -4,8 +4,7 @@
 #
 set -euo pipefail
 
-PG_VERSION="${PG_VERSION:-16}"
-PG_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+PG_BIN="${PG_BIN:-$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)}"
 PGDATA="${SAFECIRCLE_PGDATA:-$HOME/.local/share/safecircle/pgdata}"
 
 if "${PG_BIN}/pg_ctl" --pgdata="${PGDATA}" status >/dev/null 2>&1; then

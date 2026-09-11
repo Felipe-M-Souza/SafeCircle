@@ -6,16 +6,16 @@
 #
 set -euo pipefail
 
-PG_VERSION="${PG_VERSION:-16}"
-PG_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+# Detecta automaticamente a versão instalada do PostgreSQL (usa a mais recente).
+PG_BIN="${PG_BIN:-$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)}"
 PGDATA="${SAFECIRCLE_PGDATA:-$HOME/.local/share/safecircle/pgdata}"
 PGPORT="${SAFECIRCLE_PGPORT:-5432}"
 PGSOCKET_DIR="/tmp"
 DB_NAME="${SAFECIRCLE_DB_NAME:-safecircle}"
 DB_USER="${SAFECIRCLE_DB_USER:-safecircle}"
 
-if [ ! -x "${PG_BIN}/pg_ctl" ]; then
-  echo "ERRO: binários do PostgreSQL ${PG_VERSION} não encontrados em ${PG_BIN}" >&2
+if [ -z "${PG_BIN}" ] || [ ! -x "${PG_BIN}/pg_ctl" ]; then
+  echo "ERRO: binários do PostgreSQL não encontrados em /usr/lib/postgresql/*/bin" >&2
   echo "Instale com: sudo apt-get install -y postgresql postgresql-contrib" >&2
   exit 1
 fi
