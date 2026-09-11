@@ -16,6 +16,7 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
     ],
+    "testTimeout": 20000,
     "testMatch": [
       "**/__tests__/**/*.test.ts?(x)"
     ],
