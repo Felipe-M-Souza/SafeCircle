@@ -36,6 +36,14 @@ export function createMockApi(overrides: Partial<ApiClient> = {}): jest.Mocked<A
     getAlert: jest.fn(),
     resolveAlert: jest.fn(),
     cancelAlert: jest.fn(),
+    registerPushDevice: jest.fn(async () => ({
+      id: "device-1",
+      platform: "IOS" as const,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      isActive: true,
+      updatedAt: "2026-09-11T20:00:00.000Z",
+    })),
+    unregisterPushDevice: jest.fn(async () => undefined),
     ...overrides,
   };
   return api as unknown as jest.Mocked<ApiClient>;
