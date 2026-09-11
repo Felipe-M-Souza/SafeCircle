@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import { AuthenticatedHomeScreen } from "./src/screens/AuthenticatedHomeScreen";
@@ -9,6 +9,13 @@ import { SplashScreen } from "./src/screens/SplashScreen";
 function Root(): React.JSX.Element {
   const { status } = useAuth();
   const [authScreen, setAuthScreen] = useState<"login" | "register">("login");
+
+  // Ao entrar no estado não autenticado (inclusive após logout), volta ao Login.
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      setAuthScreen("login");
+    }
+  }, [status]);
 
   if (status === "loading") {
     return <SplashScreen />;
