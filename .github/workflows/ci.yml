@@ -48,6 +48,9 @@ jobs:
       - name: Instalar dependências
         run: pnpm install --frozen-lockfile
 
+      - name: Aplicar migrations (banco limpo)
+        run: pnpm --filter @safecircle/api db:migrate
+
       - name: Validação (lint + format + typecheck + testes + build)
         run: pnpm validate
 

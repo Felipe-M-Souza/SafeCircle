@@ -5,5 +5,10 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
     globals: false,
+    globalSetup: ["./tests/setup/global-setup.ts"],
+    // Testes de integração compartilham um banco: evitar concorrência entre arquivos.
+    fileParallelism: false,
+    hookTimeout: 30000,
+    testTimeout: 30000,
   },
 });
