@@ -265,11 +265,12 @@ describe("Push ao criar alerta — falhas do provedor", () => {
     const slowApp = await createTestApp({ pushProvider: slowProvider });
     try {
       const res = await postAlert(slowApp, creator, { groupId });
-      // A resposta chegou enquanto o envio ainda está bloqueado no provedor.
+      // A resposta chegou enquanto o envio ainda está bloqueado no provedor
+      // (há também a publicação realtime da Phase 5 em segundo plano).
       expect(res.statusCode).toBe(201);
-      expect(slowApp.background.pendingCount()).toBe(1);
+      expect(slowApp.background.pendingCount()).toBeGreaterThanOrEqual(1);
       await started;
-      expect(slowApp.background.pendingCount()).toBe(1);
+      expect(slowApp.background.pendingCount()).toBeGreaterThanOrEqual(1);
       release();
       await slowApp.background.flush();
       expect(slowProvider.recipients).toEqual([memberToken]);
