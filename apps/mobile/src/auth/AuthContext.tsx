@@ -9,6 +9,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   /** Falso na web (sessão apenas em memória, não persiste após reload). */
   sessionPersistent: boolean;
+  /** Cliente HTTP autenticado (com auto-refresh) para chamadas protegidas. */
+  api: ApiClient;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       refreshAccessToken: () => doRefresh(),
     });
   }
+  const api = clientRef.current;
 
   const applySession = useCallback(
     async (accessToken: string, refreshToken: string, nextUser: AuthUser) => {
@@ -142,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         status,
         user,
         sessionPersistent: secureStorage.persistent,
+        api,
         signIn,
         signUp,
         signOut,
