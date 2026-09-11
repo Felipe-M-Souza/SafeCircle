@@ -8,16 +8,16 @@ import { createDatabase } from "../infrastructure/database/client.js";
  * Executa um `SELECT 1` para provar que a integração de banco está configurada.
  */
 async function main(): Promise<void> {
-  const env = loadEnv();
+  const config = loadEnv();
 
-  if (!env.DATABASE_URL) {
+  if (!config.databaseUrl) {
     console.error(
       "DATABASE_URL não definida. Configure o `.env` (veja `.env.example`) e rode `pnpm db:start`.",
     );
     process.exit(1);
   }
 
-  const handle = createDatabase(env.DATABASE_URL);
+  const handle = createDatabase(config.databaseUrl);
   try {
     const result = await handle.db.execute(sql`select 1 as ok`);
     const ok = (result as unknown as Array<{ ok: number }>)[0]?.ok;
