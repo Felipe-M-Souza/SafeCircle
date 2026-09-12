@@ -24,6 +24,12 @@ export const REALTIME_EVENT_TYPES = [
   "CHECKIN_SAFE",
   "CHECKIN_CANCELLED",
   "CHECKIN_OVERDUE",
+  // Phase 8 — Trajeto Seguro. JOURNEY_LOCATION_UPDATED nunca traz coordenadas.
+  "JOURNEY_CREATED",
+  "JOURNEY_ARRIVED",
+  "JOURNEY_CANCELLED",
+  "JOURNEY_OVERDUE",
+  "JOURNEY_LOCATION_UPDATED",
 ] as const;
 
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
@@ -33,6 +39,7 @@ export interface RealtimeEventData {
   groupId?: string;
   userId?: string;
   checkinId?: string;
+  journeyId?: string;
 }
 
 export interface RealtimeEvent {
@@ -80,15 +87,21 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
   const groupId = optionalString(data.groupId);
   const userId = optionalString(data.userId);
   const checkinId = optionalString(data.checkinId);
+  const journeyId = optionalString(data.journeyId);
   if (alertId) parsed.data.alertId = alertId;
   if (groupId) parsed.data.groupId = groupId;
   if (userId) parsed.data.userId = userId;
   if (checkinId) parsed.data.checkinId = checkinId;
+  if (journeyId) parsed.data.journeyId = journeyId;
   return parsed;
 }
 
 export function isCheckinEvent(event: RealtimeEvent): boolean {
   return event.type.startsWith("CHECKIN_");
+}
+
+export function isJourneyEvent(event: RealtimeEvent): boolean {
+  return event.type.startsWith("JOURNEY_");
 }
 
 /** Eventos que mudam o estado do alerta em si (não a localização ao vivo). */

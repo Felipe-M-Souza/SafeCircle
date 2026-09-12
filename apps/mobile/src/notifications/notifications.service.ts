@@ -155,22 +155,46 @@ export interface CheckinNotificationData {
   groupId?: string;
 }
 
-export type NotificationData = AlertNotificationData | CheckinNotificationData;
+// Phase 8 — trajeto atrasado
+export const JOURNEY_OVERDUE_NOTIFICATION_TYPE = "SAFE_JOURNEY_OVERDUE";
 
-/** Interpreta qualquer payload conhecido (alerta ou check-in); IDs são apenas referência. */
+export interface JourneyNotificationData {
+  type: typeof JOURNEY_OVERDUE_NOTIFICATION_TYPE;
+  journeyId: string;
+  groupId?: string;
+}
+
+export type NotificationData =
+  AlertNotificationData | CheckinNotificationData | JourneyNotificationData;
+
+/** Interpreta qualquer payload conhecido (alerta, check-in ou trajeto); IDs são referência. */
 export function parseNotificationData(data: unknown): NotificationData | null {
   const alert = parseAlertNotificationData(data);
   if (alert) return alert;
   if (typeof data !== "object" || data === null) return null;
   const record = data as Record<string, unknown>;
-  if (record.type !== CHECKIN_OVERDUE_NOTIFICATION_TYPE) return null;
-  if (typeof record.checkinId !== "string" || record.checkinId.length === 0) return null;
-  const parsed: CheckinNotificationData = {
-    type: CHECKIN_OVERDUE_NOTIFICATION_TYPE,
-    checkinId: record.checkinId,
-  };
-  if (typeof record.groupId === "string") parsed.groupId = record.groupId;
-  return parsed;
+
+  if (record.type === CHECKIN_OVERDUE_NOTIFICATION_TYPE) {
+    if (typeof record.checkinId !== "string" || record.checkinId.length === 0) return null;
+    const parsed: CheckinNotificationData = {
+      type: CHECKIN_OVERDUE_NOTIFICATION_TYPE,
+      checkinId: record.checkinId,
+    };
+    if (typeof record.groupId === "string") parsed.groupId = record.groupId;
+    return parsed;
+  }
+
+  if (record.type === JOURNEY_OVERDUE_NOTIFICATION_TYPE) {
+    if (typeof record.journeyId !== "string" || record.journeyId.length === 0) return null;
+    const parsed: JourneyNotificationData = {
+      type: JOURNEY_OVERDUE_NOTIFICATION_TYPE,
+      journeyId: record.journeyId,
+    };
+    if (typeof record.groupId === "string") parsed.groupId = record.groupId;
+    return parsed;
+  }
+
+  return null;
 }
 
 export function notificationDataFromResponse(

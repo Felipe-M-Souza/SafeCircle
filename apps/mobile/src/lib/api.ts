@@ -221,6 +221,34 @@ export interface CreateCheckinInput {
   dueAt: string;
 }
 
+// --- Trajeto Seguro (Phase 8) ---
+
+export type JourneyStatus = "ACTIVE" | "ARRIVED" | "CANCELLED" | "OVERDUE";
+
+export interface SafeJourney {
+  id: string;
+  groupId: string;
+  groupName: string;
+  user: { id: string; name: string };
+  status: JourneyStatus;
+  destinationLabel: string | null;
+  /** Chegada prevista absoluta (UTC) — o servidor é o relógio autoritativo. */
+  expectedArrivalAt: string;
+  liveLocationEnabled: boolean;
+  startedAt: string;
+  arrivedAt: string | null;
+  cancelledAt: string | null;
+  overdueAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateJourneyInput {
+  groupId: string;
+  destinationLabel?: string;
+  expectedArrivalAt: string;
+  liveLocationEnabled?: boolean;
+}
+
 // --- Notificações Push (Phase 4) ---
 
 export type PushPlatform = "IOS" | "ANDROID";
@@ -423,6 +451,46 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     cancelCheckin(checkinId: string): Promise<SafetyCheckin> {
       return authed<SafetyCheckin>("POST", `/checkins/${checkinId}/cancel`);
+    },
+
+    // --- Trajeto Seguro (Phase 8) ---
+    createJourney(input: CreateJourneyInput, idempotencyKey: string): Promise<SafeJourney> {
+      return authed<SafeJourney>("POST", "/journeys", input, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+    },
+    listMyJourneys(status?: JourneyStatus): Promise<SafeJourney[]> {
+      return authed<SafeJourney[]>("GET", status ? `/journeys?status=${status}` : "/journeys");
+    },
+    getJourney(journeyId: string): Promise<SafeJourney> {
+      return authed<SafeJourney>("GET", `/journeys/${journeyId}`);
+    },
+    listGroupJourneys(groupId: string): Promise<SafeJourney[]> {
+      return authed<SafeJourney[]>("GET", `/groups/${groupId}/journeys`);
+    },
+    arriveJourney(journeyId: string): Promise<SafeJourney> {
+      return authed<SafeJourney>("POST", `/journeys/${journeyId}/arrive`);
+    },
+    cancelJourney(journeyId: string): Promise<SafeJourney> {
+      return authed<SafeJourney>("POST", `/journeys/${journeyId}/cancel`);
+    },
+    startJourneyLiveLocation(journeyId: string): Promise<LiveLocationSession> {
+      return authed<LiveLocationSession>("POST", `/journeys/${journeyId}/live-location/start`);
+    },
+    sendJourneyLiveLocation(
+      journeyId: string,
+      input: LiveLocationUpdateInput,
+    ): Promise<{ sessionId: string; point: LiveLocationPoint }> {
+      return authed("POST", `/journeys/${journeyId}/live-location`, input);
+    },
+    stopJourneyLiveLocation(journeyId: string): Promise<LiveLocationState> {
+      return authed<LiveLocationState>("POST", `/journeys/${journeyId}/live-location/stop`);
+    },
+    getJourneyLiveLocation(journeyId: string): Promise<LiveLocationState> {
+      return authed<LiveLocationState>("GET", `/journeys/${journeyId}/live-location`);
+    },
+    getJourneyLiveLocationHistory(journeyId: string): Promise<LiveLocationHistory> {
+      return authed<LiveLocationHistory>("GET", `/journeys/${journeyId}/live-location/history`);
     },
 
     // --- Notificações Push (Phase 4) ---
