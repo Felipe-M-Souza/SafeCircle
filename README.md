@@ -36,7 +36,16 @@ precisão e indicação de desatualização; pontos são validados, limitados em
 frequência e idempotentes; a sessão para automaticamente ao resolver/cancelar
 o alerta; eventos realtime não carregam coordenadas; retenção de 30 dias via
 `pnpm location:cleanup`. **Background location não foi implementado** (ver
-ADR 0007). Sem check-in ou trajeto seguro (próximas fases).
+ADR 0007). Phase 7 (Check-in de Segurança) concluída: o usuário inicia um
+check-in em um grupo com prazo de 5 minutos a 24 horas (`POST /checkins`,
+idempotente), confirma com "ESTOU BEM" (`POST /checkins/:id/safe`) ou cancela
+(`.../cancel`); o servidor é o relógio autoritativo e um scheduler por polling
+no PostgreSQL (a cada 15 s, lotes de 100, atualização condicional) marca
+`OVERDUE` os check-ins vencidos, publica `CHECKIN_OVERDUE` por realtime e envia
+push aos demais membros do grupo ("Check-in não confirmado"). Check-in vencido
+**não** cria alerta SOS nem liga localização ao vivo; apenas membros do grupo
+veem os check-ins (`GET /groups/:groupId/checkins`); retenção de 90 dias via
+`pnpm checkin:cleanup` (ver ADR 0008). Sem trajeto seguro (Phase 8).
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -48,6 +57,15 @@ produção (ex.: cron diário):
 
 ```bash
 pnpm location:cleanup        # apaga localização de alertas encerrados há mais de 30 dias
+```
+
+**Check-in de segurança (requisitos):** o vencimento é decidido pelo servidor
+(scheduler interno da API, instância única — ver ADR 0008); o app mostra apenas
+um contador visual e, ao zerar, consulta o backend. A retenção de check-ins
+finalizados (90 dias) deve rodar periodicamente em produção (ex.: cron diário):
+
+```bash
+pnpm checkin:cleanup         # apaga check-ins finalizados (SAFE/CANCELLED/OVERDUE) há mais de 90 dias
 ```
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
