@@ -43,7 +43,10 @@ export type ErrorCode =
   | "INVALID_PUSH_PLATFORM"
   | "PUSH_DEVICE_NOT_FOUND"
   // Phase 5 — Tempo Real / acknowledgements
-  | "ALERT_NOT_ACTIVE";
+  | "ALERT_NOT_ACTIVE"
+  // Phase 6 — Localização ao Vivo
+  | "LIVE_LOCATION_NOT_ACTIVE"
+  | "LOCATION_UPDATE_TOO_FREQUENT";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -121,4 +124,18 @@ export const errors = {
 
   // Phase 5 — Tempo Real / acknowledgements
   alertNotActive: () => new AppError("ALERT_NOT_ACTIVE", 409, "Este alerta não está mais ativo."),
+
+  // Phase 6 — Localização ao Vivo
+  liveLocationNotActive: () =>
+    new AppError(
+      "LIVE_LOCATION_NOT_ACTIVE",
+      409,
+      "O compartilhamento de localização ao vivo não está ativo.",
+    ),
+  locationUpdateTooFrequent: () =>
+    new AppError(
+      "LOCATION_UPDATE_TOO_FREQUENT",
+      429,
+      "Atualizações de localização muito frequentes.",
+    ),
 };

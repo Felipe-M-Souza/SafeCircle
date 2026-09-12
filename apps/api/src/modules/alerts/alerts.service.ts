@@ -13,6 +13,7 @@ import { errors } from "../../shared/errors.js";
 import { hashRequestPayload } from "../../shared/idempotency.js";
 import { findMembershipRole, requireMembership } from "../groups/authorization.js";
 import type { CreateAlertInput } from "./alerts.schemas.js";
+import { stopActiveSessionForAlert } from "./live-location.service.js";
 
 /** Escopo da chave de idempotência da criação de alerta. */
 export const CREATE_ALERT_IDEMPOTENCY_SCOPE = "alerts.create";
@@ -350,12 +351,18 @@ export async function getAlert(db: Database, userId: string, alertId: string): P
 // Ciclo de vida: ACTIVE -> RESOLVED | CANCELLED
 // ------------------------------------------------------------------
 
+export interface AlertTransitionResult {
+  alert: AlertView;
+  /** Sessão de localização ao vivo encerrada junto com o alerta (Phase 6), se havia. */
+  stoppedLiveSessionId: string | null;
+}
+
 async function closeAlert(
   db: Database,
   userId: string,
   alertId: string,
   target: "RESOLVED" | "CANCELLED",
-): Promise<AlertView> {
+): Promise<AlertTransitionResult> {
   const [alert] = await db
     .select({
       id: emergencyAlerts.id,
@@ -379,31 +386,44 @@ async function closeAlert(
   }
 
   // Compare-and-swap: só transita se ainda estiver ACTIVE. Em transição
-  // inválida (já encerrado/cancelado) nada é alterado.
+  // inválida (já encerrado/cancelado) nada é alterado. A sessão de
+  // localização ao vivo (Phase 6) é encerrada na MESMA transação: sem alerta
+  // ativo não há compartilhamento, independentemente do app.
   const now = new Date();
-  const updated = await db
-    .update(emergencyAlerts)
-    .set(
-      target === "RESOLVED"
-        ? { status: "RESOLVED", resolvedAt: now, updatedAt: now }
-        : { status: "CANCELLED", cancelledAt: now, updatedAt: now },
-    )
-    .where(and(eq(emergencyAlerts.id, alertId), eq(emergencyAlerts.status, "ACTIVE")))
-    .returning({ id: emergencyAlerts.id });
+  const stoppedLiveSessionId = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(emergencyAlerts)
+      .set(
+        target === "RESOLVED"
+          ? { status: "RESOLVED", resolvedAt: now, updatedAt: now }
+          : { status: "CANCELLED", cancelledAt: now, updatedAt: now },
+      )
+      .where(and(eq(emergencyAlerts.id, alertId), eq(emergencyAlerts.status, "ACTIVE")))
+      .returning({ id: emergencyAlerts.id });
 
-  if (updated.length === 0) {
-    throw errors.invalidAlertTransition();
-  }
+    if (updated.length === 0) {
+      throw errors.invalidAlertTransition();
+    }
+    return stopActiveSessionForAlert(tx, alertId, now);
+  });
 
-  return loadAlertView(db, alertId);
+  return { alert: await loadAlertView(db, alertId), stoppedLiveSessionId };
 }
 
 /** Somente o criador: ACTIVE -> RESOLVED (preenche `resolvedAt`). */
-export function resolveAlert(db: Database, userId: string, alertId: string): Promise<AlertView> {
+export function resolveAlert(
+  db: Database,
+  userId: string,
+  alertId: string,
+): Promise<AlertTransitionResult> {
   return closeAlert(db, userId, alertId, "RESOLVED");
 }
 
 /** Somente o criador: ACTIVE -> CANCELLED (preenche `cancelledAt`). */
-export function cancelAlert(db: Database, userId: string, alertId: string): Promise<AlertView> {
+export function cancelAlert(
+  db: Database,
+  userId: string,
+  alertId: string,
+): Promise<AlertTransitionResult> {
   return closeAlert(db, userId, alertId, "CANCELLED");
 }

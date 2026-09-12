@@ -39,6 +39,25 @@ export const setAcknowledgementSchema = z.object({
 });
 
 export type SetAcknowledgementInput = z.infer<typeof setAcknowledgementSchema>;
+
+// Phase 6 — Localização ao Vivo
+/**
+ * Ponto de localização ao vivo. `z.number()` já rejeita NaN/Infinity e strings.
+ * `capturedAt` vem do aparelho (validado também contra datas absurdas no serviço);
+ * `createdAt` do servidor é a referência operacional.
+ */
+export const liveLocationUpdateSchema = z.object({
+  clientUpdateId: z.string().uuid("Identificador de atualização inválido."),
+  latitude: z.number().min(-90, "Latitude inválida.").max(90, "Latitude inválida."),
+  longitude: z.number().min(-180, "Longitude inválida.").max(180, "Longitude inválida."),
+  accuracy: z.number().nonnegative("Precisão inválida.").nullish(),
+  altitude: z.number().nullish(),
+  heading: z.number().min(0, "Direção inválida.").max(360, "Direção inválida.").nullish(),
+  speed: z.number().nonnegative("Velocidade inválida.").nullish(),
+  capturedAt: z.iso.datetime({ offset: true, message: "Data de captura inválida." }),
+});
+
+export type LiveLocationUpdateInput = z.infer<typeof liveLocationUpdateSchema>;
 export type AlertLocationInput = z.infer<typeof alertLocationInputSchema>;
 export type CreateAlertInput = z.infer<typeof createAlertSchema>;
 export type ListAlertsQuery = z.infer<typeof listAlertsQuerySchema>;

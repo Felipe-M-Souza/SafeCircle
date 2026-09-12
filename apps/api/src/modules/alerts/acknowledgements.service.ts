@@ -2,12 +2,11 @@ import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../../infrastructure/database/client.js";
 import {
   alertAcknowledgements,
-  emergencyAlerts,
   users,
   type AcknowledgementType,
 } from "../../infrastructure/database/schema.js";
 import { errors } from "../../shared/errors.js";
-import { findMembershipRole } from "../groups/authorization.js";
+import { loadAccessibleAlert } from "./alert-access.js";
 
 /**
  * Acknowledgements (Phase 5): estado declarado por um membro sobre um alerta.
@@ -29,45 +28,12 @@ export interface AcknowledgementView {
   updatedAt: string;
 }
 
-interface AccessibleAlert {
-  id: string;
-  groupId: string;
-  createdByUserId: string;
-  status: string;
-}
-
 function isUniqueViolation(error: unknown): boolean {
   const code = (value: unknown): unknown =>
     typeof value === "object" && value !== null && "code" in value
       ? (value as { code?: unknown }).code
       : undefined;
   return code(error) === "23505" || code((error as { cause?: unknown } | null)?.cause) === "23505";
-}
-
-/** Alerta acessível ao usuário (membro do grupo); caso contrário ALERT_NOT_FOUND. */
-async function loadAccessibleAlert(
-  db: Database,
-  userId: string,
-  alertId: string,
-): Promise<AccessibleAlert> {
-  const [alert] = await db
-    .select({
-      id: emergencyAlerts.id,
-      groupId: emergencyAlerts.groupId,
-      createdByUserId: emergencyAlerts.createdByUserId,
-      status: emergencyAlerts.status,
-    })
-    .from(emergencyAlerts)
-    .where(eq(emergencyAlerts.id, alertId))
-    .limit(1);
-  if (!alert) {
-    throw errors.alertNotFound();
-  }
-  const role = await findMembershipRole(db, alert.groupId, userId);
-  if (!role) {
-    throw errors.alertNotFound();
-  }
-  return alert;
 }
 
 async function loadView(

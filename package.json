@@ -20,7 +20,8 @@
     "dev:mobile": "pnpm --filter @safecircle/mobile web",
     "db:start": "bash scripts/db-start.sh",
     "db:stop": "bash scripts/db-stop.sh",
-    "db:check": "pnpm --filter @safecircle/api run db:check"
+    "db:check": "pnpm --filter @safecircle/api run db:check",
+    "location:cleanup": "pnpm --filter @safecircle/api run location:cleanup"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
