@@ -24,6 +24,7 @@ import {
  * Phase 6 — Localização ao Vivo: introduz `alert_location_sessions` e
  * `alert_location_updates` (a `alert_locations` da Phase 3 segue sendo a
  * localização pontual da ativação).
+ * Phase 7 — Check-in de Segurança: introduz `safety_checkins`.
  * Identificadores internos permanecem em inglês por consistência técnica.
  */
 
@@ -389,6 +390,50 @@ export const alertLocationUpdates = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 7 — Check-in de Segurança
+// ------------------------------------------------------------------
+
+export const checkinStatus = pgEnum("checkin_status", ["ACTIVE", "SAFE", "CANCELLED", "OVERDUE"]);
+
+/**
+ * Check-in temporizado (Phase 7): o usuário se compromete a confirmar que
+ * está bem até `dueAt`. O servidor é o relógio autoritativo: um scheduler
+ * marca `ACTIVE -> OVERDUE` quando o prazo vence. Um check-in vencido NÃO é
+ * uma emergência confirmada e nunca cria alerta automaticamente.
+ */
+export const safetyCheckins = pgTable(
+  "safety_checkins",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => trustedGroups.id, { onDelete: "cascade" }),
+    status: checkinStatus("status").notNull().default("ACTIVE"),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    overdueAt: timestamp("overdue_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // No máximo um check-in ACTIVE por (usuário, grupo) — garantido no PostgreSQL.
+    uniqueIndex("safety_checkins_active_per_user_group_unique")
+      .on(table.userId, table.groupId)
+      .where(sql`${table.status} = 'ACTIVE'`),
+    index("safety_checkins_user_id_idx").on(table.userId),
+    index("safety_checkins_group_id_idx").on(table.groupId),
+    // Scheduler: ACTIVE com due_at vencido.
+    index("safety_checkins_status_due_at_idx").on(table.status, table.dueAt),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
@@ -396,6 +441,18 @@ export const usersRelations = relations(users, ({ many }) => ({
   pushDevices: many(pushDevices),
   acknowledgements: many(alertAcknowledgements),
   liveLocationSessions: many(alertLocationSessions),
+  safetyCheckins: many(safetyCheckins),
+}));
+
+export const safetyCheckinsRelations = relations(safetyCheckins, ({ one }) => ({
+  user: one(users, {
+    fields: [safetyCheckins.userId],
+    references: [users.id],
+  }),
+  group: one(trustedGroups, {
+    fields: [safetyCheckins.groupId],
+    references: [trustedGroups.id],
+  }),
 }));
 
 export const alertLocationSessionsRelations = relations(alertLocationSessions, ({ one, many }) => ({
@@ -508,3 +565,5 @@ export type AcknowledgementType = (typeof acknowledgementType.enumValues)[number
 export type AlertLocationSession = typeof alertLocationSessions.$inferSelect;
 export type AlertLocationUpdate = typeof alertLocationUpdates.$inferSelect;
 export type LiveLocationSessionStatus = (typeof liveLocationSessionStatus.enumValues)[number];
+export type SafetyCheckin = typeof safetyCheckins.$inferSelect;
+export type CheckinStatus = (typeof checkinStatus.enumValues)[number];

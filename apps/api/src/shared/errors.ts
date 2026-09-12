@@ -46,7 +46,12 @@ export type ErrorCode =
   | "ALERT_NOT_ACTIVE"
   // Phase 6 — Localização ao Vivo
   | "LIVE_LOCATION_NOT_ACTIVE"
-  | "LOCATION_UPDATE_TOO_FREQUENT";
+  | "LOCATION_UPDATE_TOO_FREQUENT"
+  // Phase 7 — Check-in de Segurança
+  | "CHECKIN_NOT_FOUND"
+  | "CHECKIN_ALREADY_ACTIVE"
+  | "INVALID_CHECKIN_TRANSITION"
+  | "INVALID_CHECKIN_DUE_AT";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -138,4 +143,13 @@ export const errors = {
       429,
       "Atualizações de localização muito frequentes.",
     ),
+
+  // Phase 7 — Check-in de Segurança
+  checkinNotFound: () => new AppError("CHECKIN_NOT_FOUND", 404, "Check-in não encontrado."),
+  checkinAlreadyActive: () =>
+    new AppError("CHECKIN_ALREADY_ACTIVE", 409, "Você já possui um check-in ativo neste grupo."),
+  invalidCheckinTransition: () =>
+    new AppError("INVALID_CHECKIN_TRANSITION", 409, "Transição de estado do check-in inválida."),
+  invalidCheckinDueAt: (message = "Prazo do check-in inválido.") =>
+    new AppError("INVALID_CHECKIN_DUE_AT", 400, message),
 };

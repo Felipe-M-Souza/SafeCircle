@@ -21,6 +21,11 @@ export interface RealtimeEventDataMap {
   ALERT_LIVE_LOCATION_STARTED: { alertId: string; groupId: string; sessionId: string };
   ALERT_LIVE_LOCATION_UPDATED: { alertId: string; groupId: string; sessionId: string };
   ALERT_LIVE_LOCATION_STOPPED: { alertId: string; groupId: string; sessionId: string };
+  // Phase 7 — Check-in de Segurança (payload mínimo; sem localização ou contato).
+  CHECKIN_CREATED: { checkinId: string; groupId: string; userId: string };
+  CHECKIN_SAFE: { checkinId: string; groupId: string; userId: string };
+  CHECKIN_CANCELLED: { checkinId: string; groupId: string; userId: string };
+  CHECKIN_OVERDUE: { checkinId: string; groupId: string; userId: string };
 }
 
 export type RealtimeEventType = keyof RealtimeEventDataMap;
