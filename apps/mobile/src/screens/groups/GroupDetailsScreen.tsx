@@ -97,6 +97,14 @@ export function GroupDetailsScreen({
         {t.membersTitle(group.memberCount)} · {strings.roles[group.role]}
       </Text>
 
+      <Pressable
+        style={styles.secondaryButton}
+        onPress={() => nav.navigate({ name: "groupCheckins", groupId, groupName: group.name })}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryText}>{strings.checkins.viewGroupCheckins}</Text>
+      </Pressable>
+
       {canManage ? (
         renaming ? (
           <View style={styles.renameRow}>

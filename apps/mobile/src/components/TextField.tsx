@@ -18,6 +18,7 @@ export function TextField({
       <TextInput
         style={[styles.input, error ? styles.inputError : null, style]}
         placeholderTextColor={colors.mutedText}
+        accessibilityLabel={label}
         {...inputProps}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}

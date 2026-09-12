@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Nav, Screen } from "../navigation/types";
-import { consumePendingAlertId, subscribeAlertOpen } from "../notifications/pending-alert";
+import {
+  consumePendingTarget,
+  subscribeNotificationOpen,
+  type PendingTarget,
+} from "../notifications/pending-alert";
 import { AuthenticatedHomeScreen } from "./AuthenticatedHomeScreen";
 import { GroupsListScreen } from "./groups/GroupsListScreen";
 import { CreateGroupScreen } from "./groups/CreateGroupScreen";
@@ -9,29 +13,36 @@ import { InviteScreen } from "./groups/InviteScreen";
 import { ReceivedInvitationsScreen } from "./groups/ReceivedInvitationsScreen";
 import { ActiveAlertsScreen } from "./alerts/ActiveAlertsScreen";
 import { AlertDetailsScreen } from "./alerts/AlertDetailsScreen";
+import { NewCheckinScreen } from "./checkins/NewCheckinScreen";
+import { CheckinDetailsScreen } from "./checkins/CheckinDetailsScreen";
+import { GroupCheckinsScreen } from "./checkins/GroupCheckinsScreen";
+
+function screenFor(target: PendingTarget): Screen {
+  return target.kind === "alert"
+    ? { name: "alertDetails", alertId: target.alertId }
+    : { name: "checkinDetails", checkinId: target.checkinId };
+}
 
 /**
- * Navegação leve baseada em pilha para a área autenticada (Phase 2/3/4).
+ * Navegação leve baseada em pilha para a área autenticada (Phases 2–7).
  * Mantém a solução simples, sem adicionar bibliotecas de navegação.
  *
- * Phase 4: uma notificação tocada abre a tela do alerta — na montagem (app
- * aberto pela notificação ou login após o toque) ou imediatamente, se a área
- * autenticada já estiver visível. A tela busca o alerta na API, que revalida
- * a autorização e devolve o estado atual (a notificação pode ser antiga).
+ * Uma notificação tocada (alerta ou check-in vencido) abre a tela do
+ * recurso — na montagem (app aberto pela notificação ou login após o toque)
+ * ou imediatamente, se a área autenticada já estiver visível. A tela busca o
+ * estado atual na API, que revalida a autorização.
  */
 export function AuthenticatedApp(): React.JSX.Element {
   const [stack, setStack] = useState<Screen[]>(() => {
-    const pendingAlertId = consumePendingAlertId();
-    return pendingAlertId
-      ? [{ name: "home" }, { name: "alertDetails", alertId: pendingAlertId }]
-      : [{ name: "home" }];
+    const pending = consumePendingTarget();
+    return pending ? [{ name: "home" }, screenFor(pending)] : [{ name: "home" }];
   });
 
   useEffect(
     () =>
-      subscribeAlertOpen((alertId) => {
-        consumePendingAlertId();
-        setStack((prev) => [...prev, { name: "alertDetails", alertId }]);
+      subscribeNotificationOpen((target) => {
+        consumePendingTarget();
+        setStack((prev) => [...prev, screenFor(target)]);
       }),
     [],
   );
@@ -68,6 +79,14 @@ export function AuthenticatedApp(): React.JSX.Element {
           alertId={current.alertId}
           justActivated={current.justActivated ?? false}
         />
+      );
+    case "newCheckin":
+      return <NewCheckinScreen nav={nav} />;
+    case "checkinDetails":
+      return <CheckinDetailsScreen nav={nav} checkinId={current.checkinId} />;
+    case "groupCheckins":
+      return (
+        <GroupCheckinsScreen nav={nav} groupId={current.groupId} groupName={current.groupName} />
       );
     case "home":
     default:

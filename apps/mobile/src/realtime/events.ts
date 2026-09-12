@@ -19,6 +19,11 @@ export const REALTIME_EVENT_TYPES = [
   "ALERT_LIVE_LOCATION_STARTED",
   "ALERT_LIVE_LOCATION_UPDATED",
   "ALERT_LIVE_LOCATION_STOPPED",
+  // Phase 7 — Check-in de Segurança.
+  "CHECKIN_CREATED",
+  "CHECKIN_SAFE",
+  "CHECKIN_CANCELLED",
+  "CHECKIN_OVERDUE",
 ] as const;
 
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
@@ -27,6 +32,7 @@ export interface RealtimeEventData {
   alertId?: string;
   groupId?: string;
   userId?: string;
+  checkinId?: string;
 }
 
 export interface RealtimeEvent {
@@ -73,10 +79,16 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
   const alertId = optionalString(data.alertId);
   const groupId = optionalString(data.groupId);
   const userId = optionalString(data.userId);
+  const checkinId = optionalString(data.checkinId);
   if (alertId) parsed.data.alertId = alertId;
   if (groupId) parsed.data.groupId = groupId;
   if (userId) parsed.data.userId = userId;
+  if (checkinId) parsed.data.checkinId = checkinId;
   return parsed;
+}
+
+export function isCheckinEvent(event: RealtimeEvent): boolean {
+  return event.type.startsWith("CHECKIN_");
 }
 
 /** Eventos que mudam o estado do alerta em si (não a localização ao vivo). */

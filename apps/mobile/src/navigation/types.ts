@@ -7,7 +7,11 @@ export type Screen =
   | { name: "invitations" }
   // Phase 3 — Alerta de Emergência
   | { name: "activeAlerts" }
-  | { name: "alertDetails"; alertId: string; justActivated?: boolean };
+  | { name: "alertDetails"; alertId: string; justActivated?: boolean }
+  // Phase 7 — Check-in de Segurança
+  | { name: "newCheckin" }
+  | { name: "checkinDetails"; checkinId: string }
+  | { name: "groupCheckins"; groupId: string; groupName: string };
 
 export interface Nav {
   navigate: (screen: Screen) => void;

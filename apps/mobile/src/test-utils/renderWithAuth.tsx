@@ -78,6 +78,12 @@ export function createMockApi(overrides: Partial<ApiClient> = {}): jest.Mocked<A
       latest: null,
     })),
     getLiveLocationHistory: jest.fn(async () => ({ sessionId: null, points: [] })),
+    createCheckin: jest.fn(),
+    listMyCheckins: jest.fn(async () => []),
+    getCheckin: jest.fn(),
+    listGroupCheckins: jest.fn(async () => []),
+    confirmCheckinSafe: jest.fn(),
+    cancelCheckin: jest.fn(),
     registerPushDevice: jest.fn(async () => ({
       id: "device-1",
       platform: "IOS" as const,
