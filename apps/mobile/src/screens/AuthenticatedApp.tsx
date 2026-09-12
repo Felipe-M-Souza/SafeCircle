@@ -16,11 +16,14 @@ import { AlertDetailsScreen } from "./alerts/AlertDetailsScreen";
 import { NewCheckinScreen } from "./checkins/NewCheckinScreen";
 import { CheckinDetailsScreen } from "./checkins/CheckinDetailsScreen";
 import { GroupCheckinsScreen } from "./checkins/GroupCheckinsScreen";
+import { NewJourneyScreen } from "./journeys/NewJourneyScreen";
+import { JourneyDetailsScreen } from "./journeys/JourneyDetailsScreen";
+import { GroupJourneysScreen } from "./journeys/GroupJourneysScreen";
 
 function screenFor(target: PendingTarget): Screen {
-  return target.kind === "alert"
-    ? { name: "alertDetails", alertId: target.alertId }
-    : { name: "checkinDetails", checkinId: target.checkinId };
+  if (target.kind === "alert") return { name: "alertDetails", alertId: target.alertId };
+  if (target.kind === "journey") return { name: "journeyDetails", journeyId: target.journeyId };
+  return { name: "checkinDetails", checkinId: target.checkinId };
 }
 
 /**
@@ -87,6 +90,14 @@ export function AuthenticatedApp(): React.JSX.Element {
     case "groupCheckins":
       return (
         <GroupCheckinsScreen nav={nav} groupId={current.groupId} groupName={current.groupName} />
+      );
+    case "newJourney":
+      return <NewJourneyScreen nav={nav} />;
+    case "journeyDetails":
+      return <JourneyDetailsScreen nav={nav} journeyId={current.journeyId} />;
+    case "groupJourneys":
+      return (
+        <GroupJourneysScreen nav={nav} groupId={current.groupId} groupName={current.groupName} />
       );
     case "home":
     default:

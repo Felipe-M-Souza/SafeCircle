@@ -20,6 +20,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<Fasti
     pushProvider: options.pushProvider ?? new FakePushProvider(),
     // Os testes controlam o vencimento via app.checkinScheduler.runOnce().
     checkinSchedulerAutoStart: false,
+    // Os testes controlam o vencimento via app.journeyScheduler.runOnce().
+    journeySchedulerAutoStart: false,
   });
   await app.ready();
   return app;

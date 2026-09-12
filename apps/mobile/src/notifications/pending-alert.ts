@@ -8,7 +8,9 @@
  */
 
 export type PendingTarget =
-  { kind: "alert"; alertId: string } | { kind: "checkin"; checkinId: string };
+  | { kind: "alert"; alertId: string }
+  | { kind: "checkin"; checkinId: string }
+  | { kind: "journey"; journeyId: string };
 
 type TargetListener = (target: PendingTarget) => void;
 
@@ -28,6 +30,10 @@ export function openAlertFromNotification(alertId: string): void {
 
 export function openCheckinFromNotification(checkinId: string): void {
   publish({ kind: "checkin", checkinId });
+}
+
+export function openJourneyFromNotification(journeyId: string): void {
+  publish({ kind: "journey", journeyId });
 }
 
 /** Devolve e limpa a intenção pendente (qualquer tipo). */

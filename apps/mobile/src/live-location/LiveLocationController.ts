@@ -1,5 +1,10 @@
 import { strings, translateErrorCode } from "../i18n/pt-BR";
-import { ApiError, type ApiClient } from "../lib/api";
+import {
+  ApiError,
+  type ApiClient,
+  type LiveLocationState,
+  type LiveLocationUpdateInput,
+} from "../lib/api";
 import {
   requestLiveLocationPermission,
   watchLiveLocation,
@@ -10,12 +15,45 @@ import {
 import { LiveLocationUploader, type UploaderStatus } from "./LiveLocationUploader";
 
 /**
- * Sessão de compartilhamento ao vivo do criador para um alerta (Phase 6).
+ * Transporte REST do compartilhamento: abstrai o recurso (alerta ou trajeto)
+ * para que o MESMO controller/GPS/uploader sirva às Phases 6 e 8. Cada recurso
+ * fornece suas quatro operações; o controller não conhece endpoints.
+ */
+export interface LiveLocationTransport {
+  start(): Promise<unknown>;
+  send(point: LiveLocationUpdateInput): Promise<unknown>;
+  stop(): Promise<unknown>;
+  getState(): Promise<LiveLocationState>;
+}
+
+/** Transporte de um alerta (Phase 6). */
+export function alertTransport(api: ApiClient, alertId: string): LiveLocationTransport {
+  return {
+    start: () => api.startLiveLocation(alertId),
+    send: (point) => api.sendLiveLocation(alertId, point),
+    stop: () => api.stopLiveLocation(alertId),
+    getState: () => api.getLiveLocation(alertId),
+  };
+}
+
+/** Transporte de um trajeto (Phase 8). */
+export function journeyTransport(api: ApiClient, journeyId: string): LiveLocationTransport {
+  return {
+    start: () => api.startJourneyLiveLocation(journeyId),
+    send: (point) => api.sendJourneyLiveLocation(journeyId, point),
+    stop: () => api.stopJourneyLiveLocation(journeyId),
+    getState: () => api.getJourneyLiveLocation(journeyId),
+  };
+}
+
+/**
+ * Sessão de compartilhamento ao vivo do criador de um recurso (alerta na
+ * Phase 6, trajeto na Phase 8) — um único sistema de GPS.
  *
- * Vive fora das telas (registro por alertId) para que navegar dentro do app
- * não interrompa o compartilhamento. É parado: manualmente, ao resolver ou
- * cancelar o alerta, quando o backend informa que a sessão não está mais
- * ativa, no logout e quando a autorização se perde.
+ * Vive fora das telas (registro por recurso) para que navegar dentro do app
+ * não interrompa o compartilhamento. É parado: manualmente, ao encerrar o
+ * recurso, quando o backend informa que a sessão não está mais ativa, no
+ * logout e quando a autorização se perde.
  */
 
 export type SharingState = "INACTIVE" | "STARTING" | "ACTIVE" | "DEGRADED" | "STOPPED";
@@ -51,11 +89,16 @@ export class LiveLocationController {
   private readonly watch: (onSample: (sample: LocationSample) => void) => Promise<WatchHandle>;
   private readonly now: () => number;
 
+  private readonly transport: LiveLocationTransport;
+
   constructor(
     readonly alertId: string,
-    private readonly api: ApiClient,
+    api: ApiClient,
     deps: ControllerDeps = {},
+    transport?: LiveLocationTransport,
   ) {
+    // Sem transporte explícito, assume-se um alerta (compatível com a Phase 6).
+    this.transport = transport ?? alertTransport(api, alertId);
     this.requestPermission = deps.requestPermission ?? requestLiveLocationPermission;
     this.watch = deps.watch ?? watchLiveLocation;
     this.now = deps.now ?? Date.now;
@@ -96,7 +139,7 @@ export class LiveLocationController {
     }
 
     try {
-      await this.api.startLiveLocation(this.alertId);
+      await this.transport.start();
     } catch (error) {
       this.update({
         state: "INACTIVE",
@@ -108,7 +151,7 @@ export class LiveLocationController {
     }
 
     this.uploader = new LiveLocationUploader({
-      send: (point) => this.api.sendLiveLocation(this.alertId, point),
+      send: (point) => this.transport.send(point),
       now: this.now,
       onSent: (_point, sentAt) => this.update({ lastSentAt: sentAt }),
       onStatus: (status: UploaderStatus) => {
@@ -150,7 +193,7 @@ export class LiveLocationController {
     }
     if (options.notifyBackend !== false && wasRunning) {
       try {
-        await this.api.stopLiveLocation(this.alertId);
+        await this.transport.stop();
       } catch {
         // Best-effort: sem alerta ativo o backend já rejeita novos pontos.
       }
@@ -161,7 +204,7 @@ export class LiveLocationController {
   async resync(): Promise<void> {
     if (!this.isActive()) return;
     try {
-      const state = await this.api.getLiveLocation(this.alertId);
+      const state = await this.transport.getState();
       if (state.status !== "ACTIVE") {
         await this.stop({ notifyBackend: false });
       }
@@ -180,15 +223,32 @@ export class LiveLocationController {
 
 const controllers = new Map<string, LiveLocationController>();
 
+/** Controller de compartilhamento de um alerta (Phase 6). Chave: `alert:<id>`. */
 export function getLiveLocationController(
   alertId: string,
   api: ApiClient,
   deps?: ControllerDeps,
 ): LiveLocationController {
-  let controller = controllers.get(alertId);
+  const key = `alert:${alertId}`;
+  let controller = controllers.get(key);
   if (!controller) {
-    controller = new LiveLocationController(alertId, api, deps);
-    controllers.set(alertId, controller);
+    controller = new LiveLocationController(alertId, api, deps, alertTransport(api, alertId));
+    controllers.set(key, controller);
+  }
+  return controller;
+}
+
+/** Controller de compartilhamento de um trajeto (Phase 8). Chave: `journey:<id>`. */
+export function getJourneyLiveLocationController(
+  journeyId: string,
+  api: ApiClient,
+  deps?: ControllerDeps,
+): LiveLocationController {
+  const key = `journey:${journeyId}`;
+  let controller = controllers.get(key);
+  if (!controller) {
+    controller = new LiveLocationController(journeyId, api, deps, journeyTransport(api, journeyId));
+    controllers.set(key, controller);
   }
   return controller;
 }

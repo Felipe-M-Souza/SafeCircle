@@ -51,7 +51,15 @@ export type ErrorCode =
   | "CHECKIN_NOT_FOUND"
   | "CHECKIN_ALREADY_ACTIVE"
   | "INVALID_CHECKIN_TRANSITION"
-  | "INVALID_CHECKIN_DUE_AT";
+  | "INVALID_CHECKIN_DUE_AT"
+  // Phase 8 — Trajeto Seguro
+  | "JOURNEY_NOT_FOUND"
+  | "JOURNEY_ALREADY_ACTIVE"
+  | "JOURNEY_NOT_ACTIVE"
+  | "INVALID_JOURNEY_EXPECTED_ARRIVAL"
+  | "INVALID_JOURNEY_TRANSITION"
+  | "JOURNEY_LIVE_LOCATION_NOT_ACTIVE"
+  | "JOURNEY_LIVE_LOCATION_DISABLED";
 
 export class AppError extends Error {
   readonly code: ErrorCode;
@@ -152,4 +160,26 @@ export const errors = {
     new AppError("INVALID_CHECKIN_TRANSITION", 409, "Transição de estado do check-in inválida."),
   invalidCheckinDueAt: (message = "Prazo do check-in inválido.") =>
     new AppError("INVALID_CHECKIN_DUE_AT", 400, message),
+
+  // Phase 8 — Trajeto Seguro
+  journeyNotFound: () => new AppError("JOURNEY_NOT_FOUND", 404, "Trajeto não encontrado."),
+  journeyAlreadyActive: () =>
+    new AppError("JOURNEY_ALREADY_ACTIVE", 409, "Você já possui um trajeto em andamento."),
+  journeyNotActive: () => new AppError("JOURNEY_NOT_ACTIVE", 409, "Este trajeto não está ativo."),
+  invalidJourneyExpectedArrival: (message = "Horário de chegada previsto inválido.") =>
+    new AppError("INVALID_JOURNEY_EXPECTED_ARRIVAL", 400, message),
+  invalidJourneyTransition: () =>
+    new AppError("INVALID_JOURNEY_TRANSITION", 409, "Transição de estado do trajeto inválida."),
+  journeyLiveLocationNotActive: () =>
+    new AppError(
+      "JOURNEY_LIVE_LOCATION_NOT_ACTIVE",
+      409,
+      "O compartilhamento de localização do trajeto não está ativo.",
+    ),
+  journeyLiveLocationDisabled: () =>
+    new AppError(
+      "JOURNEY_LIVE_LOCATION_DISABLED",
+      409,
+      "Este trajeto não habilitou o compartilhamento de localização.",
+    ),
 };

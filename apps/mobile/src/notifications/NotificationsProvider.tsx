@@ -13,12 +13,20 @@ import {
   type NotificationData,
   type NotificationPermission,
 } from "./notifications.service";
-import { openAlertFromNotification, openCheckinFromNotification } from "./pending-alert";
+import {
+  openAlertFromNotification,
+  openCheckinFromNotification,
+  openJourneyFromNotification,
+} from "./pending-alert";
 
 /** Encaminha o toque na notificação para a tela certa (só IDs trafegam). */
 function routeNotification(data: NotificationData): void {
   if (data.type === "SAFETY_CHECKIN_OVERDUE") {
     openCheckinFromNotification(data.checkinId);
+    return;
+  }
+  if (data.type === "SAFE_JOURNEY_OVERDUE") {
+    openJourneyFromNotification(data.journeyId);
     return;
   }
   openAlertFromNotification(data.alertId);

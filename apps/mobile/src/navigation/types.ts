@@ -11,7 +11,11 @@ export type Screen =
   // Phase 7 — Check-in de Segurança
   | { name: "newCheckin" }
   | { name: "checkinDetails"; checkinId: string }
-  | { name: "groupCheckins"; groupId: string; groupName: string };
+  | { name: "groupCheckins"; groupId: string; groupName: string }
+  // Phase 8 — Trajeto Seguro
+  | { name: "newJourney" }
+  | { name: "journeyDetails"; journeyId: string }
+  | { name: "groupJourneys"; groupId: string; groupName: string };
 
 export interface Nav {
   navigate: (screen: Screen) => void;

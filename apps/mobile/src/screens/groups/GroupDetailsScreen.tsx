@@ -105,6 +105,14 @@ export function GroupDetailsScreen({
         <Text style={styles.secondaryText}>{strings.checkins.viewGroupCheckins}</Text>
       </Pressable>
 
+      <Pressable
+        style={styles.secondaryButton}
+        onPress={() => nav.navigate({ name: "groupJourneys", groupId, groupName: group.name })}
+        accessibilityRole="button"
+      >
+        <Text style={styles.secondaryText}>{strings.journeys.viewGroupJourneys}</Text>
+      </Pressable>
+
       {canManage ? (
         renaming ? (
           <View style={styles.renameRow}>

@@ -434,6 +434,131 @@ export const safetyCheckins = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 8 — Trajeto Seguro
+// ------------------------------------------------------------------
+
+export const journeyStatus = pgEnum("journey_status", [
+  "ACTIVE",
+  "ARRIVED",
+  "CANCELLED",
+  "OVERDUE",
+]);
+
+/**
+ * Trajeto seguro (Phase 8): o usuário avisa um grupo que está a caminho e se
+ * compromete a confirmar a chegada até `expectedArrivalAt`. O servidor é o
+ * relógio autoritativo: um scheduler marca `ACTIVE -> OVERDUE` quando o prazo
+ * vence. Um trajeto atrasado NÃO é uma emergência confirmada e nunca cria
+ * alerta automaticamente. O destino é textual e opcional; a localização ao
+ * vivo é opt-in explícito (`liveLocationEnabled`).
+ */
+export const safeJourneys = pgTable(
+  "safe_journeys",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => trustedGroups.id, { onDelete: "cascade" }),
+    status: journeyStatus("status").notNull().default("ACTIVE"),
+    // Descrição textual e opcional do destino (ex.: "Casa"). Nunca um endereço
+    // exato obrigatório nem coordenada — sem geocoding.
+    destinationLabel: text("destination_label"),
+    expectedArrivalAt: timestamp("expected_arrival_at", { withTimezone: true }).notNull(),
+    liveLocationEnabled: boolean("live_location_enabled").notNull().default(false),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    overdueAt: timestamp("overdue_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // No máximo um trajeto não-finalizado (ACTIVE ou OVERDUE) por usuário.
+    uniqueIndex("safe_journeys_unfinished_per_user_unique")
+      .on(table.userId)
+      .where(sql`${table.status} in ('ACTIVE', 'OVERDUE')`),
+    index("safe_journeys_user_id_idx").on(table.userId),
+    index("safe_journeys_group_id_idx").on(table.groupId),
+    // Scheduler: ACTIVE com expected_arrival_at vencido.
+    index("safe_journeys_status_expected_idx").on(table.status, table.expectedArrivalAt),
+  ],
+);
+
+/**
+ * Sessão de compartilhamento ao vivo de um trajeto (Phase 8). Tabela própria
+ * (não reutiliza as de alerta): opt-in explícito, no máximo uma ACTIVE por
+ * trajeto, encerrada ao chegar/cancelar ou manualmente.
+ */
+export const journeyLocationSessions = pgTable(
+  "journey_location_sessions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    journeyId: uuid("journey_id")
+      .notNull()
+      .references(() => safeJourneys.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: liveLocationSessionStatus("status").notNull().default("ACTIVE"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journey_location_sessions_active_per_journey_unique")
+      .on(table.journeyId)
+      .where(sql`${table.status} = 'ACTIVE'`),
+    index("journey_location_sessions_journey_id_idx").on(table.journeyId),
+  ],
+);
+
+/**
+ * Pontos de localização ao vivo do trajeto (Phase 8). Dado altamente
+ * sensível: só membros atuais do grupo leem, nunca aparece em logs nem em
+ * eventos realtime, e é apagado pela retenção (30 dias após o encerramento).
+ */
+export const journeyLocationUpdates = pgTable(
+  "journey_location_updates",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => journeyLocationSessions.id, { onDelete: "cascade" }),
+    journeyId: uuid("journey_id")
+      .notNull()
+      .references(() => safeJourneys.id, { onDelete: "cascade" }),
+    // Idempotência do ponto: retry de rede com o mesmo id não duplica.
+    clientUpdateId: uuid("client_update_id").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracy: doublePrecision("accuracy"),
+    altitude: doublePrecision("altitude"),
+    heading: doublePrecision("heading"),
+    speed: doublePrecision("speed"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journey_location_updates_session_client_unique").on(
+      table.sessionId,
+      table.clientUpdateId,
+    ),
+    index("journey_location_updates_session_created_idx").on(table.sessionId, table.createdAt),
+    index("journey_location_updates_journey_id_idx").on(table.journeyId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
@@ -442,6 +567,41 @@ export const usersRelations = relations(users, ({ many }) => ({
   acknowledgements: many(alertAcknowledgements),
   liveLocationSessions: many(alertLocationSessions),
   safetyCheckins: many(safetyCheckins),
+  safeJourneys: many(safeJourneys),
+}));
+
+export const safeJourneysRelations = relations(safeJourneys, ({ one, many }) => ({
+  user: one(users, {
+    fields: [safeJourneys.userId],
+    references: [users.id],
+  }),
+  group: one(trustedGroups, {
+    fields: [safeJourneys.groupId],
+    references: [trustedGroups.id],
+  }),
+  locationSessions: many(journeyLocationSessions),
+}));
+
+export const journeyLocationSessionsRelations = relations(
+  journeyLocationSessions,
+  ({ one, many }) => ({
+    journey: one(safeJourneys, {
+      fields: [journeyLocationSessions.journeyId],
+      references: [safeJourneys.id],
+    }),
+    user: one(users, {
+      fields: [journeyLocationSessions.userId],
+      references: [users.id],
+    }),
+    updates: many(journeyLocationUpdates),
+  }),
+);
+
+export const journeyLocationUpdatesRelations = relations(journeyLocationUpdates, ({ one }) => ({
+  session: one(journeyLocationSessions, {
+    fields: [journeyLocationUpdates.sessionId],
+    references: [journeyLocationSessions.id],
+  }),
 }));
 
 export const safetyCheckinsRelations = relations(safetyCheckins, ({ one }) => ({
@@ -567,3 +727,7 @@ export type AlertLocationUpdate = typeof alertLocationUpdates.$inferSelect;
 export type LiveLocationSessionStatus = (typeof liveLocationSessionStatus.enumValues)[number];
 export type SafetyCheckin = typeof safetyCheckins.$inferSelect;
 export type CheckinStatus = (typeof checkinStatus.enumValues)[number];
+export type SafeJourney = typeof safeJourneys.$inferSelect;
+export type JourneyStatus = (typeof journeyStatus.enumValues)[number];
+export type JourneyLocationSession = typeof journeyLocationSessions.$inferSelect;
+export type JourneyLocationUpdate = typeof journeyLocationUpdates.$inferSelect;
