@@ -45,7 +45,19 @@ no PostgreSQL (a cada 15 s, lotes de 100, atualização condicional) marca
 push aos demais membros do grupo ("Check-in não confirmado"). Check-in vencido
 **não** cria alerta SOS nem liga localização ao vivo; apenas membros do grupo
 veem os check-ins (`GET /groups/:groupId/checkins`); retenção de 90 dias via
-`pnpm checkin:cleanup` (ver ADR 0008). Sem trajeto seguro (Phase 8).
+`pnpm checkin:cleanup` (ver ADR 0008). Phase 8 (Trajeto Seguro) concluída: o
+usuário inicia um trajeto para um grupo, com destino textual opcional e chegada
+prevista de 10 minutos a 24 horas (`POST /journeys`, idempotente), confirma a
+chegada com "CHEGUEI EM SEGURANÇA" (`POST /journeys/:id/arrive`) ou cancela
+(`.../cancel`); há no máximo um trajeto não-finalizado por usuário. O servidor é
+o relógio autoritativo e um scheduler (o mesmo motor da Phase 7) marca `OVERDUE`
+os trajetos vencidos, publica `JOURNEY_OVERDUE` por realtime e envia push aos
+demais membros ("Trajeto não confirmado"). Trajeto atrasado **não** cria alerta
+SOS. Opcionalmente (opt-in explícito, `liveLocationEnabled`), o dono compartilha
+a localização ao vivo durante o trajeto, em **primeiro plano** (mesma limitação
+da Phase 6), em tabelas próprias; a sessão encerra ao chegar/cancelar. Retenção:
+localização em 30 dias e trajeto em 90 dias via `pnpm journey:cleanup` (ver
+ADR 0009).
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -66,6 +78,17 @@ finalizados (90 dias) deve rodar periodicamente em produção (ex.: cron diário
 
 ```bash
 pnpm checkin:cleanup         # apaga check-ins finalizados (SAFE/CANCELLED/OVERDUE) há mais de 90 dias
+```
+
+**Trajeto seguro (requisitos):** o vencimento é decidido pelo servidor (mesmo
+scheduler interno da Phase 7, instância única — ver ADR 0009); o app mostra
+apenas um contador visual e, ao zerar, consulta o backend. A localização ao
+vivo do trajeto é opt-in e funciona apenas em primeiro plano (mesma limitação
+do alerta, ADR 0007). A retenção do trajeto (localização em 30 dias, trajeto em
+90 dias) deve rodar periodicamente em produção (ex.: cron diário):
+
+```bash
+pnpm journey:cleanup         # apaga localização (30 dias) e trajetos finalizados (90 dias)
 ```
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
@@ -1193,7 +1216,15 @@ Planejado:
 
 ## Phase 8 — Trajeto seguro
 
-Planejado:
+Concluída (ver ADR 0009):
+
+- Iniciar trajeto para um grupo, com destino textual opcional e chegada prevista
+- Confirmar chegada, cancelar e vencimento (`OVERDUE`) pelo scheduler do servidor
+- Push e realtime de atraso; um trajeto não-finalizado por usuário
+- Localização ao vivo opcional (opt-in, primeiro plano, tabelas próprias)
+- Retenção via `pnpm journey:cleanup`
+
+Escopo original (referência):
 
 - Iniciar trajeto
 - Destino
