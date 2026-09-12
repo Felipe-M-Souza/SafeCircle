@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { CheckinsHomeSection } from "../components/CheckinsHomeSection";
 import { HoldToActivateButton } from "../components/HoldToActivateButton";
 import { NotificationsCard } from "../components/NotificationsCard";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -229,6 +230,8 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
 
         {renderSosArea()}
         {loadError ? <Text style={styles.error}>{loadError}</Text> : null}
+
+        <CheckinsHomeSection nav={nav} />
 
         <NotificationsCard />
 

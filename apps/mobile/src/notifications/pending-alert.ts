@@ -1,41 +1,66 @@
 /**
- * Intenção de navegação vinda de uma notificação (Phase 4).
+ * Intenção de navegação vinda de uma notificação (Phases 4/7).
  *
- * Quando o usuário toca em uma notificação de alerta, guardamos apenas o
- * `alertId` (referência, não autorização). A área autenticada consome a
- * intenção ao montar (cold start ou login posterior) ou reage imediatamente
- * via assinatura quando já está aberta. O backend revalida a autorização ao
- * buscar o alerta.
+ * Guardamos apenas o ID do recurso (referência, não autorização): alerta ou
+ * check-in. A área autenticada consome a intenção ao montar (cold start ou
+ * login posterior) ou reage imediatamente via assinatura quando já está
+ * aberta. O backend revalida a autorização ao buscar o recurso.
  */
 
-type Listener = (alertId: string) => void;
+export type PendingTarget =
+  { kind: "alert"; alertId: string } | { kind: "checkin"; checkinId: string };
 
-let pendingAlertId: string | null = null;
-const listeners = new Set<Listener>();
+type TargetListener = (target: PendingTarget) => void;
 
-export function openAlertFromNotification(alertId: string): void {
-  pendingAlertId = alertId;
+let pending: PendingTarget | null = null;
+const listeners = new Set<TargetListener>();
+
+function publish(target: PendingTarget): void {
+  pending = target;
   for (const listener of listeners) {
-    listener(alertId);
+    listener(target);
   }
 }
 
-/** Devolve e limpa a intenção pendente. */
-export function consumePendingAlertId(): string | null {
-  const value = pendingAlertId;
-  pendingAlertId = null;
+export function openAlertFromNotification(alertId: string): void {
+  publish({ kind: "alert", alertId });
+}
+
+export function openCheckinFromNotification(checkinId: string): void {
+  publish({ kind: "checkin", checkinId });
+}
+
+/** Devolve e limpa a intenção pendente (qualquer tipo). */
+export function consumePendingTarget(): PendingTarget | null {
+  const value = pending;
+  pending = null;
   return value;
 }
 
-export function subscribeAlertOpen(listener: Listener): () => void {
+/** Compatibilidade: devolve e limpa a intenção pendente se for um alerta. */
+export function consumePendingAlertId(): string | null {
+  if (pending?.kind !== "alert") return null;
+  const value = pending.alertId;
+  pending = null;
+  return value;
+}
+
+export function subscribeNotificationOpen(listener: TargetListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
+/** Compatibilidade: assina apenas aberturas de alerta. */
+export function subscribeAlertOpen(listener: (alertId: string) => void): () => void {
+  return subscribeNotificationOpen((target) => {
+    if (target.kind === "alert") listener(target.alertId);
+  });
+}
+
 /** Apenas para testes. */
 export function resetPendingAlert(): void {
-  pendingAlertId = null;
+  pending = null;
   listeners.clear();
 }

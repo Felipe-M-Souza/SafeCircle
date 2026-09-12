@@ -10,9 +10,19 @@ import {
   getPermissionStatus,
   isPushSupported,
   requestPermission,
+  type NotificationData,
   type NotificationPermission,
 } from "./notifications.service";
-import { openAlertFromNotification } from "./pending-alert";
+import { openAlertFromNotification, openCheckinFromNotification } from "./pending-alert";
+
+/** Encaminha o toque na notificação para a tela certa (só IDs trafegam). */
+function routeNotification(data: NotificationData): void {
+  if (data.type === "SAFETY_CHECKIN_OVERDUE") {
+    openCheckinFromNotification(data.checkinId);
+    return;
+  }
+  openAlertFromNotification(data.alertId);
+}
 
 /**
  * Estado das notificações push no app (Phase 4).
@@ -53,10 +63,10 @@ export function NotificationsProvider({
     void refresh();
     void getInitialAlertNotification().then((data) => {
       if (active && data) {
-        openAlertFromNotification(data.alertId);
+        routeNotification(data);
       }
     });
-    const tap = addNotificationTapListener((data) => openAlertFromNotification(data.alertId));
+    const tap = addNotificationTapListener(routeNotification);
     // Ao voltar do sistema (ex.: configurações), reflete a permissão atual.
     const appState = AppState.addEventListener("change", (state) => {
       if (state === "active") {

@@ -106,6 +106,68 @@ export const ptBR = {
   realtime: {
     reconnecting: "Reconectando às atualizações em tempo real...",
   },
+  checkins: {
+    sectionTitle: "Check-in de segurança",
+    intro: "Avise seu grupo que você pretende confirmar que está bem até um determinado horário.",
+    start: "INICIAR CHECK-IN",
+    activeTitle: "Check-in ativo",
+    overdueTitle: "Check-in não confirmado",
+    confirmBy: (time: string) => `Confirme até ${time}`,
+    remaining: (totalSeconds: number) => {
+      if (totalSeconds <= 0) return "Prazo encerrado. Aguardando confirmação do servidor...";
+      if (totalSeconds < 60) return `Faltam ${totalSeconds} s`;
+      const minutes = Math.ceil(totalSeconds / 60);
+      return minutes === 1 ? "Falta 1 min" : `Faltam ${minutes} min`;
+    },
+    imOk: "ESTOU BEM",
+    cancel: "CANCELAR CHECK-IN",
+    confirmCancelMessage: "Cancelar este check-in? Seu grupo não será avisado.",
+    confirmCancel: "Sim, cancelar",
+    keep: "Manter check-in",
+    viewDetails: "Ver check-in",
+    viewGroupCheckins: "Check-ins do grupo",
+    newTitle: "Novo check-in",
+    groupLabel: "Grupo",
+    durationLabel: "Quero confirmar que estou bem em:",
+    durations: {
+      15: "15 minutos",
+      30: "30 minutos",
+      60: "1 hora",
+      120: "2 horas",
+    } as Record<number, string>,
+    customDuration: "Personalizado",
+    customMinutesLabel: "Minutos (entre 5 e 1440)",
+    customMinutesInvalid: "Informe um prazo entre 5 minutos e 24 horas.",
+    warning: (time: string, groupName: string) =>
+      `Se você não confirmar até ${time}, os membros do grupo ${groupName} serão avisados.`,
+    noGroups: "Você precisa participar de um grupo de confiança antes de iniciar um check-in.",
+    creating: "Iniciando...",
+    detailsTitle: "Check-in",
+    statusLabels: {
+      ACTIVE: "Aguardando confirmação",
+      SAFE: "Confirmou que está bem",
+      OVERDUE: "O prazo venceu sem confirmação",
+      CANCELLED: "Check-in cancelado",
+    } as Record<string, string>,
+    user: "Quem",
+    group: "Grupo",
+    status: "Status",
+    createdAt: "Criado às",
+    dueAt: "Prazo",
+    confirmedAt: "Confirmado às",
+    cancelledAt: "Cancelado às",
+    overdueAt: "Vencido às",
+    ownerOverdue: "Seu check-in venceu sem confirmação.",
+    memberOverdue: (name: string) => `O prazo de ${name} venceu sem confirmação.`,
+    memberOverdueNote: "Isso não confirma uma emergência. Tente entrar em contato de forma segura.",
+    memberOverdueGuidance:
+      "Se houver indícios de risco imediato, considere acionar os serviços oficiais de emergência.",
+    safeFeedback: "Você confirmou que está bem. Seu grupo foi atualizado.",
+    cancelledFeedback: "Check-in cancelado.",
+    groupListTitle: (groupName: string) => `Check-ins de ${groupName}`,
+    groupListEmpty: "Nenhum check-in neste grupo.",
+    loadError: "Não foi possível carregar os check-ins.",
+  },
   liveLocation: {
     title: "Localização ao vivo",
     description: "Compartilhe sua posição enquanto este alerta estiver ativo.",
@@ -289,6 +351,11 @@ export const ptBR = {
     // Phase 6 — Localização ao Vivo
     LIVE_LOCATION_NOT_ACTIVE: "O compartilhamento de localização ao vivo não está ativo.",
     LOCATION_UPDATE_TOO_FREQUENT: "Atualizações de localização muito frequentes.",
+    // Phase 7 — Check-in de Segurança
+    CHECKIN_NOT_FOUND: "Check-in não encontrado.",
+    CHECKIN_ALREADY_ACTIVE: "Você já possui um check-in ativo neste grupo.",
+    INVALID_CHECKIN_TRANSITION: "Este check-in já foi encerrado.",
+    INVALID_CHECKIN_DUE_AT: "Prazo inválido. Escolha entre 5 minutos e 24 horas.",
   } as Record<string, string>,
 } as const;
 

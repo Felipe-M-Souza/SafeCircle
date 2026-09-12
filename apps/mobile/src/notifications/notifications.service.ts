@@ -146,25 +146,58 @@ export function alertDataFromResponse(
   return parseAlertNotificationData(response?.notification?.request?.content?.data);
 }
 
+// Phase 7 — check-in vencido
+export const CHECKIN_OVERDUE_NOTIFICATION_TYPE = "SAFETY_CHECKIN_OVERDUE";
+
+export interface CheckinNotificationData {
+  type: typeof CHECKIN_OVERDUE_NOTIFICATION_TYPE;
+  checkinId: string;
+  groupId?: string;
+}
+
+export type NotificationData = AlertNotificationData | CheckinNotificationData;
+
+/** Interpreta qualquer payload conhecido (alerta ou check-in); IDs são apenas referência. */
+export function parseNotificationData(data: unknown): NotificationData | null {
+  const alert = parseAlertNotificationData(data);
+  if (alert) return alert;
+  if (typeof data !== "object" || data === null) return null;
+  const record = data as Record<string, unknown>;
+  if (record.type !== CHECKIN_OVERDUE_NOTIFICATION_TYPE) return null;
+  if (typeof record.checkinId !== "string" || record.checkinId.length === 0) return null;
+  const parsed: CheckinNotificationData = {
+    type: CHECKIN_OVERDUE_NOTIFICATION_TYPE,
+    checkinId: record.checkinId,
+  };
+  if (typeof record.groupId === "string") parsed.groupId = record.groupId;
+  return parsed;
+}
+
+export function notificationDataFromResponse(
+  response: Notifications.NotificationResponse | null | undefined,
+): NotificationData | null {
+  return parseNotificationData(response?.notification?.request?.content?.data);
+}
+
 export type NotificationResponseSubscription = { remove: () => void };
 
 /** Listener de toque na notificação (app em foreground, background ou fechado). */
 export function addNotificationTapListener(
-  handler: (data: AlertNotificationData) => void,
+  handler: (data: NotificationData) => void,
 ): NotificationResponseSubscription {
   if (!isPushSupported()) return { remove: () => {} };
   const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = alertDataFromResponse(response);
+    const data = notificationDataFromResponse(response);
     if (data) handler(data);
   });
   return { remove: () => subscription.remove() };
 }
 
-/** Notificação que abriu o app (cold start), se houver. */
-export async function getInitialAlertNotification(): Promise<AlertNotificationData | null> {
+/** Notificação que abriu o app (cold start), se houver (alerta ou check-in). */
+export async function getInitialAlertNotification(): Promise<NotificationData | null> {
   if (!isPushSupported()) return null;
   try {
-    return alertDataFromResponse(await Notifications.getLastNotificationResponseAsync());
+    return notificationDataFromResponse(await Notifications.getLastNotificationResponseAsync());
   } catch {
     return null;
   }

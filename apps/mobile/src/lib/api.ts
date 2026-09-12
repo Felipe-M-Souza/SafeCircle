@@ -198,6 +198,29 @@ export interface LiveLocationUpdateInput {
   capturedAt: string;
 }
 
+// --- Check-in de Segurança (Phase 7) ---
+
+export type CheckinStatus = "ACTIVE" | "SAFE" | "CANCELLED" | "OVERDUE";
+
+export interface SafetyCheckin {
+  id: string;
+  groupId: string;
+  groupName: string;
+  user: { id: string; name: string };
+  status: CheckinStatus;
+  /** Prazo absoluto (UTC) — o servidor é o relógio autoritativo. */
+  dueAt: string;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  overdueAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateCheckinInput {
+  groupId: string;
+  dueAt: string;
+}
+
 // --- Notificações Push (Phase 4) ---
 
 export type PushPlatform = "IOS" | "ANDROID";
@@ -378,6 +401,28 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     getLiveLocationHistory(alertId: string): Promise<LiveLocationHistory> {
       return authed<LiveLocationHistory>("GET", `/alerts/${alertId}/live-location/history`);
+    },
+
+    // --- Check-in de Segurança (Phase 7) ---
+    createCheckin(input: CreateCheckinInput, idempotencyKey: string): Promise<SafetyCheckin> {
+      return authed<SafetyCheckin>("POST", "/checkins", input, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+    },
+    listMyCheckins(status?: CheckinStatus): Promise<SafetyCheckin[]> {
+      return authed<SafetyCheckin[]>("GET", status ? `/checkins?status=${status}` : "/checkins");
+    },
+    getCheckin(checkinId: string): Promise<SafetyCheckin> {
+      return authed<SafetyCheckin>("GET", `/checkins/${checkinId}`);
+    },
+    listGroupCheckins(groupId: string): Promise<SafetyCheckin[]> {
+      return authed<SafetyCheckin[]>("GET", `/groups/${groupId}/checkins`);
+    },
+    confirmCheckinSafe(checkinId: string): Promise<SafetyCheckin> {
+      return authed<SafetyCheckin>("POST", `/checkins/${checkinId}/safe`);
+    },
+    cancelCheckin(checkinId: string): Promise<SafetyCheckin> {
+      return authed<SafetyCheckin>("POST", `/checkins/${checkinId}/cancel`);
     },
 
     // --- Notificações Push (Phase 4) ---

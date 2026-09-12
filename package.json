@@ -21,7 +21,8 @@
     "db:start": "bash scripts/db-start.sh",
     "db:stop": "bash scripts/db-stop.sh",
     "db:check": "pnpm --filter @safecircle/api run db:check",
-    "location:cleanup": "pnpm --filter @safecircle/api run location:cleanup"
+    "location:cleanup": "pnpm --filter @safecircle/api run location:cleanup",
+    "checkin:cleanup": "pnpm --filter @safecircle/api run checkin:cleanup"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

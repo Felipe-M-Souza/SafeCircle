@@ -246,6 +246,13 @@ export async function sendLiveLocationUpdate(
   // Throttling server-side por sessão (~1 ponto a cada 2 s).
   const latest = await findLatestPoint(db, session.id);
   if (latest && now.getTime() - latest.createdAt.getTime() < LIVE_LOCATION_MIN_INTERVAL_MS) {
+    // Corrida com um retry concorrente do mesmo ponto: o "ponto recente" pode
+    // ser exatamente este clientUpdateId, gravado entre as duas leituras.
+    // Retry idempotente deve ser replay (200), nunca 429.
+    const raced = await findExisting();
+    if (raced) {
+      return { sessionId: session.id, point: toPointView(raced), replayed: true };
+    }
     throw errors.locationUpdateTooFrequent();
   }
 

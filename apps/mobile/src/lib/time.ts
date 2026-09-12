@@ -15,6 +15,15 @@ export function formatTime(iso: string): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** Segundos inteiros até `iso` (negativo quando o instante já passou). */
+export function secondsUntil(iso: string, now: number = Date.now()): number {
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) {
+    return 0;
+  }
+  return Math.round((target - now) / 1000);
+}
+
 /** Minutos inteiros decorridos desde `iso` (nunca negativo). */
 export function minutesSince(iso: string, now: number = Date.now()): number {
   const then = new Date(iso).getTime();
