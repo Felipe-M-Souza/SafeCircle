@@ -37,3 +37,14 @@ export function checkinRateLimit(nodeEnv: string): { max: number; timeWindow: st
   }
   return { max: 20, timeWindow: "1 minute" };
 }
+
+/**
+ * Limite para criação de trajetos (Phase 8): evita spam sem afetar o SOS.
+ * Um trajeto não-finalizado por usuário já contém o volume.
+ */
+export function journeyRateLimit(nodeEnv: string): { max: number; timeWindow: string } {
+  if (nodeEnv === "test") {
+    return { max: 1_000_000, timeWindow: "1 minute" };
+  }
+  return { max: 20, timeWindow: "1 minute" };
+}

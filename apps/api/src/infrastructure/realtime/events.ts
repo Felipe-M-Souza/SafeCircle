@@ -26,6 +26,13 @@ export interface RealtimeEventDataMap {
   CHECKIN_SAFE: { checkinId: string; groupId: string; userId: string };
   CHECKIN_CANCELLED: { checkinId: string; groupId: string; userId: string };
   CHECKIN_OVERDUE: { checkinId: string; groupId: string; userId: string };
+  // Phase 8 — Trajeto Seguro (payload mínimo; JOURNEY_LOCATION_UPDATED NUNCA
+  // carrega coordenadas — o cliente busca o estado via REST).
+  JOURNEY_CREATED: { journeyId: string; groupId: string; userId: string };
+  JOURNEY_ARRIVED: { journeyId: string; groupId: string; userId: string };
+  JOURNEY_CANCELLED: { journeyId: string; groupId: string; userId: string };
+  JOURNEY_OVERDUE: { journeyId: string; groupId: string; userId: string };
+  JOURNEY_LOCATION_UPDATED: { journeyId: string; groupId: string; userId: string };
 }
 
 export type RealtimeEventType = keyof RealtimeEventDataMap;
