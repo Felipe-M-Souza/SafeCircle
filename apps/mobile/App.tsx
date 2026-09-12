@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
+import type { ApiClient } from "./src/lib/api";
+import { LiveLocationLifecycle } from "./src/live-location/LiveLocationLifecycle";
+import { stopAllLiveLocation } from "./src/live-location/LiveLocationController";
 import { unregisterCurrentDevice } from "./src/notifications/device-registration";
 import { NotificationsProvider } from "./src/notifications/NotificationsProvider";
 import { RealtimeProvider } from "./src/realtime/RealtimeProvider";
@@ -35,12 +38,22 @@ function Root(): React.JSX.Element {
   );
 }
 
+/**
+ * Antes de encerrar a sessão (ainda autenticado), em best-effort:
+ * para o compartilhamento de localização ao vivo (Phase 6) e desativa o push
+ * device (Phase 4). Nenhuma falha impede o logout.
+ */
+async function beforeSignOut(api: ApiClient): Promise<void> {
+  await stopAllLiveLocation({ notifyBackend: true });
+  await unregisterCurrentDevice(api);
+}
+
 export default function App(): React.JSX.Element {
   return (
-    // Logout desativa o push device no backend (best-effort) antes de encerrar a sessão.
-    <AuthProvider beforeSignOut={unregisterCurrentDevice}>
+    <AuthProvider beforeSignOut={beforeSignOut}>
       <NotificationsProvider>
         <RealtimeProvider>
+          <LiveLocationLifecycle />
           <StatusBar style="light" />
           <Root />
         </RealtimeProvider>

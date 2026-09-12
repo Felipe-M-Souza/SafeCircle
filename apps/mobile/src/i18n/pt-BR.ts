@@ -106,6 +106,41 @@ export const ptBR = {
   realtime: {
     reconnecting: "Reconectando às atualizações em tempo real...",
   },
+  liveLocation: {
+    title: "Localização ao vivo",
+    description: "Compartilhe sua posição enquanto este alerta estiver ativo.",
+    enable: "ATIVAR LOCALIZAÇÃO AO VIVO",
+    consentTitle: "Compartilhar localização ao vivo",
+    consentBody:
+      "Sua localização será compartilhada apenas com os membros deste grupo enquanto o alerta estiver ativo.\n\nVocê pode interromper o compartilhamento a qualquer momento.",
+    consentConfirm: "Compartilhar",
+    consentCancel: "Agora não",
+    starting: "Ativando...",
+    statusActive: "Ativa",
+    statusStopped: "Interrompida",
+    statusStale: "Sem atualização recente",
+    statusInactive: "Desativada",
+    creatorNote: "Seu grupo pode ver sua localização enquanto o compartilhamento estiver ativo.",
+    stop: "PARAR LOCALIZAÇÃO AO VIVO",
+    confirmStopMessage: "Parar de compartilhar sua localização com o grupo?",
+    confirmStop: "Sim, parar",
+    keepSharing: "Continuar compartilhando",
+    lastUpdate: (seconds: number) =>
+      seconds < 5 ? "Última atualização agora" : `Última atualização há ${seconds} s`,
+    accuracy: (meters: number) => `Precisão aproximada: ${Math.round(meters)} m`,
+    permissionDenied:
+      "Não foi possível ativar a localização ao vivo.\n\nVocê pode continuar usando o alerta normalmente.",
+    servicesDisabled:
+      "A localização do aparelho está desligada. Ative-a nas configurações para compartilhar sua posição.",
+    openSettings: "Abrir configurações",
+    degraded: "Sem conexão. A última posição será enviada quando a rede voltar.",
+    notSharing: "O usuário não está compartilhando localização ao vivo.",
+    waitingFirstPoint: "Localização ainda não disponível.",
+    center: "CENTRALIZAR",
+    mapUnavailable: "Mapa indisponível nesta plataforma.",
+    foregroundOnlyNote:
+      "O compartilhamento funciona com o SafeCircle aberto. Em segundo plano, a posição pode deixar de ser atualizada.",
+  },
   alertStatus: {
     ACTIVE: "ATIVO",
     RESOLVED: "RESOLVIDO",
@@ -251,6 +286,9 @@ export const ptBR = {
     PUSH_DEVICE_NOT_FOUND: "Dispositivo de notificações não encontrado.",
     // Phase 5 — Tempo Real / respostas do grupo
     ALERT_NOT_ACTIVE: "Este alerta não está mais ativo.",
+    // Phase 6 — Localização ao Vivo
+    LIVE_LOCATION_NOT_ACTIVE: "O compartilhamento de localização ao vivo não está ativo.",
+    LOCATION_UPDATE_TOO_FREQUENT: "Atualizações de localização muito frequentes.",
   } as Record<string, string>,
 } as const;
 
