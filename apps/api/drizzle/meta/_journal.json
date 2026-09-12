@@ -36,6 +36,13 @@
       "when": 1789165560167,
       "tag": "0004_alert_acknowledgements",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789176491206,
+      "tag": "0005_live_location",
+      "breakpoints": true
     }
   ]
 }

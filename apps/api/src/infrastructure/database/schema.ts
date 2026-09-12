@@ -21,6 +21,9 @@ import {
  * e `idempotency_keys`.
  * Phase 4 — Notificações Push: introduz `push_devices`.
  * Phase 5 — Tempo Real: introduz `alert_acknowledgements`.
+ * Phase 6 — Localização ao Vivo: introduz `alert_location_sessions` e
+ * `alert_location_updates` (a `alert_locations` da Phase 3 segue sendo a
+ * localização pontual da ativação).
  * Identificadores internos permanecem em inglês por consistência técnica.
  */
 
@@ -307,12 +310,111 @@ export const alertAcknowledgements = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 6 — Localização ao Vivo
+// ------------------------------------------------------------------
+
+export const liveLocationSessionStatus = pgEnum("live_location_session_status", [
+  "ACTIVE",
+  "STOPPED",
+]);
+
+/**
+ * Sessão de compartilhamento ao vivo (Phase 6): opt-in explícito do criador
+ * do alerta, no máximo uma ACTIVE por alerta, encerrada manualmente ou
+ * automaticamente quando o alerta deixa de estar ACTIVE.
+ */
+export const alertLocationSessions = pgTable(
+  "alert_location_sessions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    alertId: uuid("alert_id")
+      .notNull()
+      .references(() => emergencyAlerts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: liveLocationSessionStatus("status").notNull().default("ACTIVE"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_location_sessions_active_per_alert_unique")
+      .on(table.alertId)
+      .where(sql`${table.status} = 'ACTIVE'`),
+    index("alert_location_sessions_alert_id_idx").on(table.alertId),
+  ],
+);
+
+/**
+ * Pontos de localização ao vivo (Phase 6). Dado altamente sensível: só
+ * membros atuais do grupo leem, nunca aparece em logs nem em eventos
+ * realtime, e é apagado pela política de retenção (30 dias após o
+ * encerramento do alerta).
+ */
+export const alertLocationUpdates = pgTable(
+  "alert_location_updates",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => alertLocationSessions.id, { onDelete: "cascade" }),
+    alertId: uuid("alert_id")
+      .notNull()
+      .references(() => emergencyAlerts.id, { onDelete: "cascade" }),
+    // Idempotência do ponto: retry de rede com o mesmo id não duplica.
+    clientUpdateId: uuid("client_update_id").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracy: doublePrecision("accuracy"),
+    altitude: doublePrecision("altitude"),
+    heading: doublePrecision("heading"),
+    speed: doublePrecision("speed"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("alert_location_updates_session_client_unique").on(
+      table.sessionId,
+      table.clientUpdateId,
+    ),
+    index("alert_location_updates_session_created_idx").on(table.sessionId, table.createdAt),
+    index("alert_location_updates_alert_id_idx").on(table.alertId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
   alerts: many(emergencyAlerts),
   pushDevices: many(pushDevices),
   acknowledgements: many(alertAcknowledgements),
+  liveLocationSessions: many(alertLocationSessions),
+}));
+
+export const alertLocationSessionsRelations = relations(alertLocationSessions, ({ one, many }) => ({
+  alert: one(emergencyAlerts, {
+    fields: [alertLocationSessions.alertId],
+    references: [emergencyAlerts.id],
+  }),
+  user: one(users, {
+    fields: [alertLocationSessions.userId],
+    references: [users.id],
+  }),
+  updates: many(alertLocationUpdates),
+}));
+
+export const alertLocationUpdatesRelations = relations(alertLocationUpdates, ({ one }) => ({
+  session: one(alertLocationSessions, {
+    fields: [alertLocationUpdates.sessionId],
+    references: [alertLocationSessions.id],
+  }),
 }));
 
 export const alertAcknowledgementsRelations = relations(alertAcknowledgements, ({ one }) => ({
@@ -403,3 +505,6 @@ export type PushDevice = typeof pushDevices.$inferSelect;
 export type PushPlatform = (typeof pushPlatform.enumValues)[number];
 export type AlertAcknowledgement = typeof alertAcknowledgements.$inferSelect;
 export type AcknowledgementType = (typeof acknowledgementType.enumValues)[number];
+export type AlertLocationSession = typeof alertLocationSessions.$inferSelect;
+export type AlertLocationUpdate = typeof alertLocationUpdates.$inferSelect;
+export type LiveLocationSessionStatus = (typeof liveLocationSessionStatus.enumValues)[number];
