@@ -272,7 +272,6 @@ describe("Eventos realtime — alertas", () => {
       "PushToken",
       "latitude",
       "longitude",
-      String(SYNTHETIC_LOCATION.latitude),
       "Felipe",
       owner.email,
       member.email,
@@ -280,5 +279,8 @@ describe("Eventos realtime — alertas", () => {
     ]) {
       expect(raw).not.toContain(forbidden);
     }
+    // Coordenadas como valores (UUIDs podem conter "-23"/"-46" como substring).
+    expect(raw).not.toMatch(new RegExp(`${SYNTHETIC_LOCATION.latitude}\\b`));
+    expect(raw).not.toMatch(new RegExp(`${SYNTHETIC_LOCATION.longitude}\\b`));
   });
 });
