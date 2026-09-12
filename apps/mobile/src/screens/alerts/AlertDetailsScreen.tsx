@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
+import { LiveLocationSection } from "../../components/LiveLocationSection";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
+import { getLiveLocationController } from "../../live-location/LiveLocationController";
 import { strings, translateErrorCode } from "../../i18n/pt-BR";
 import {
   ApiError,
@@ -11,7 +13,7 @@ import {
   type EmergencyAlert,
 } from "../../lib/api";
 import { formatTime } from "../../lib/time";
-import type { RealtimeEvent } from "../../realtime/events";
+import { isLiveLocationEvent, type RealtimeEvent } from "../../realtime/events";
 import { useRealtimeEvents } from "../../realtime/RealtimeProvider";
 import { colors } from "../../theme/colors";
 import type { Nav } from "../../navigation/types";
@@ -83,7 +85,8 @@ export function AlertDetailsScreen({
   // Realtime: eventos deste alerta e ressincronização recarregam pela API.
   const onRealtimeEvent = useCallback(
     (event: RealtimeEvent) => {
-      if (event.data.alertId === alertId) {
+      // Eventos de localização ao vivo são tratados pela própria seção.
+      if (event.data.alertId === alertId && !isLiveLocationEvent(event)) {
         void load();
       }
     },
@@ -113,6 +116,9 @@ export function AlertDetailsScreen({
       // O estado devolvido pelo backend é a fonte de verdade.
       setAlert(await action());
       setFeedback(message);
+      // Phase 6: o backend já encerrou a sessão ao vivo na mesma transação;
+      // o watcher local para imediatamente (nunca continuar enviando depois).
+      void getLiveLocationController(alertId, api).stop({ notifyBackend: false });
     } catch (e) {
       // Estado pode ter mudado (ex.: já encerrado): ressincroniza e só então
       // exibe o erro, para que a mensagem não seja apagada pela recarga.
@@ -195,6 +201,8 @@ export function AlertDetailsScreen({
           <Row label={t.cancelledAt} value={formatTime(alert.cancelledAt)} />
         ) : null}
       </View>
+
+      <LiveLocationSection alert={alert} isCreator={isCreator} />
 
       {isCreator && isActive ? (
         <View style={styles.actions}>

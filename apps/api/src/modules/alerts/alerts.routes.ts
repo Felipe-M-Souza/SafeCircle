@@ -8,9 +8,17 @@ import { listAcknowledgements, setAcknowledgement } from "./acknowledgements.ser
 import {
   createAlertSchema,
   listAlertsQuerySchema,
+  liveLocationUpdateSchema,
   setAcknowledgementSchema,
 } from "./alerts.schemas.js";
 import { cancelAlert, createAlert, getAlert, listAlerts, resolveAlert } from "./alerts.service.js";
+import {
+  getLiveLocationHistory,
+  getLiveLocationState,
+  sendLiveLocationUpdate,
+  startLiveLocation,
+  stopLiveLocation,
+} from "./live-location.service.js";
 
 const uuid = z.string().uuid();
 
@@ -24,13 +32,14 @@ function parseAlertId(value: unknown): string {
 }
 
 /**
- * Rotas do Alerta de Emergência (Phase 3/4/5).
+ * Rotas do Alerta de Emergência (Phase 3/4/5/6).
  *
  * Fluxo: autenticar → validar → serviço (persistência, commit) → resposta.
  * Depois do commit, em segundo plano e sem influenciar a resposta:
- * push (Phase 4, exclui o criador) e evento realtime (Phase 5, inclui o
+ * push (Phase 4, exclui o criador) e evento realtime (Phase 5/6, inclui o
  * criador para sincronizar seus outros aparelhos). Falha em qualquer um
- * deles nunca desfaz a operação REST.
+ * deles nunca desfaz a operação REST. Eventos de localização ao vivo
+ * NUNCA carregam coordenadas: o app busca o estado via REST.
  */
 export async function alertsRoutes(app: FastifyInstance): Promise<void> {
   // Todas as rotas de alertas exigem autenticação.
@@ -39,6 +48,9 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
   const publishToGroup = (groupId: string, event: ReturnType<typeof createRealtimeEvent>) => {
     app.background.run(`realtime:${event.type}`, () => app.realtime.publishToGroup(groupId, event));
   };
+
+  const params = (request: { params: unknown }) =>
+    parseAlertId((request.params as { alertId: string }).alertId);
 
   app.post("/alerts", async (request, reply) => {
     const input = createAlertSchema.parse(request.body);
@@ -75,40 +87,62 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/alerts/:alertId", async (request) => {
-    const alertId = parseAlertId((request.params as { alertId: string }).alertId);
-    return getAlert(app.db, request.auth.userId, alertId);
+    return getAlert(app.db, request.auth.userId, params(request));
   });
 
   app.post("/alerts/:alertId/resolve", async (request) => {
-    const alertId = parseAlertId((request.params as { alertId: string }).alertId);
+    const alertId = params(request);
     // Só transições reais chegam aqui: inválidas lançam antes de publicar.
-    const alert = await resolveAlert(app.db, request.auth.userId, alertId);
+    const { alert, stoppedLiveSessionId } = await resolveAlert(
+      app.db,
+      request.auth.userId,
+      alertId,
+    );
     publishToGroup(
       alert.groupId,
       createRealtimeEvent("ALERT_RESOLVED", { alertId: alert.id, groupId: alert.groupId }),
     );
+    if (stoppedLiveSessionId) {
+      publishToGroup(
+        alert.groupId,
+        createRealtimeEvent("ALERT_LIVE_LOCATION_STOPPED", {
+          alertId: alert.id,
+          groupId: alert.groupId,
+          sessionId: stoppedLiveSessionId,
+        }),
+      );
+    }
     return alert;
   });
 
   app.post("/alerts/:alertId/cancel", async (request) => {
-    const alertId = parseAlertId((request.params as { alertId: string }).alertId);
-    const alert = await cancelAlert(app.db, request.auth.userId, alertId);
+    const alertId = params(request);
+    const { alert, stoppedLiveSessionId } = await cancelAlert(app.db, request.auth.userId, alertId);
     publishToGroup(
       alert.groupId,
       createRealtimeEvent("ALERT_CANCELLED", { alertId: alert.id, groupId: alert.groupId }),
     );
+    if (stoppedLiveSessionId) {
+      publishToGroup(
+        alert.groupId,
+        createRealtimeEvent("ALERT_LIVE_LOCATION_STOPPED", {
+          alertId: alert.id,
+          groupId: alert.groupId,
+          sessionId: stoppedLiveSessionId,
+        }),
+      );
+    }
     return alert;
   });
 
   // --- Acknowledgements (Phase 5) ---
 
   app.get("/alerts/:alertId/acknowledgements", async (request) => {
-    const alertId = parseAlertId((request.params as { alertId: string }).alertId);
-    return listAcknowledgements(app.db, request.auth.userId, alertId);
+    return listAcknowledgements(app.db, request.auth.userId, params(request));
   });
 
   app.put("/alerts/:alertId/acknowledgement", async (request) => {
-    const alertId = parseAlertId((request.params as { alertId: string }).alertId);
+    const alertId = params(request);
     const input = setAcknowledgementSchema.parse(request.body);
     const userId = request.auth.userId;
     const result = await setAcknowledgement(app.db, userId, alertId, input.type);
@@ -123,5 +157,71 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
       );
     }
     return result.acknowledgement;
+  });
+
+  // --- Localização ao vivo (Phase 6) ---
+
+  app.post("/alerts/:alertId/live-location/start", async (request, reply) => {
+    const alertId = params(request);
+    const { session, created } = await startLiveLocation(app.db, request.auth.userId, alertId);
+    if (created) {
+      const alert = await getAlert(app.db, request.auth.userId, alertId);
+      publishToGroup(
+        alert.groupId,
+        createRealtimeEvent("ALERT_LIVE_LOCATION_STARTED", {
+          alertId,
+          groupId: alert.groupId,
+          sessionId: session.sessionId,
+        }),
+      );
+    }
+    return reply.status(created ? 201 : 200).send(session);
+  });
+
+  app.post("/alerts/:alertId/live-location", async (request, reply) => {
+    const alertId = params(request);
+    const input = liveLocationUpdateSchema.parse(request.body);
+    const result = await sendLiveLocationUpdate(app.db, request.auth.userId, alertId, input);
+    if (result.replayed) {
+      reply.header("Idempotent-Replayed", "true");
+    } else {
+      const alert = await getAlert(app.db, request.auth.userId, alertId);
+      publishToGroup(
+        alert.groupId,
+        createRealtimeEvent("ALERT_LIVE_LOCATION_UPDATED", {
+          alertId,
+          groupId: alert.groupId,
+          sessionId: result.sessionId,
+        }),
+      );
+    }
+    return reply
+      .status(result.replayed ? 200 : 201)
+      .send({ sessionId: result.sessionId, point: result.point });
+  });
+
+  app.post("/alerts/:alertId/live-location/stop", async (request) => {
+    const alertId = params(request);
+    const { state, changed } = await stopLiveLocation(app.db, request.auth.userId, alertId);
+    if (changed && state.sessionId) {
+      const alert = await getAlert(app.db, request.auth.userId, alertId);
+      publishToGroup(
+        alert.groupId,
+        createRealtimeEvent("ALERT_LIVE_LOCATION_STOPPED", {
+          alertId,
+          groupId: alert.groupId,
+          sessionId: state.sessionId,
+        }),
+      );
+    }
+    return state;
+  });
+
+  app.get("/alerts/:alertId/live-location", async (request) => {
+    return getLiveLocationState(app.db, request.auth.userId, params(request));
+  });
+
+  app.get("/alerts/:alertId/live-location/history", async (request) => {
+    return getLiveLocationHistory(app.db, request.auth.userId, params(request));
   });
 }

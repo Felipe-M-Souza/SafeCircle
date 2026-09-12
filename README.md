@@ -25,17 +25,30 @@ pnpm --filter @safecircle/api test      # testes de integração (usa PostgreSQL
 pnpm --filter @safecircle/mobile test   # testes do app mobile (Jest + jest-expo, sem GPS real)
 ```
 
-**Status:** Phases 0 a 4 concluídas (Fundação, Autenticação, Grupos de
-Confiança, Alerta de Emergência e Notificações Push). Phase 5 (Atualizações
-em Tempo Real) implementada: WebSocket autenticado em `GET /realtime`
-(server-push only, eventos versionados `ALERT_CREATED/RESOLVED/CANCELLED`,
-`ALERT_ACKNOWLEDGEMENT_CHANGED`, `GROUP_MEMBERSHIP_CHANGED`), respostas do
-grupo (`PUT /alerts/:id/acknowledgement`, `GET /alerts/:id/acknowledgements`)
-e, no app, cliente com reconexão automática (backoff + jitter),
-ressincronização via REST a cada (re)conexão e ações "Vi o alerta / Estou
-indo ajudar / Acionei emergência". O banco e a API REST continuam a fonte de
-verdade; o realtime é em memória em uma única instância da API (ver ADR 0006).
-Ainda **sem** localização ao vivo ou mapa (próximas fases).
+**Status:** Phases 0 a 5 concluídas (Fundação, Autenticação, Grupos de
+Confiança, Alerta de Emergência, Notificações Push e Atualizações em Tempo
+Real). Phase 6 (Localização ao Vivo) implementada em **primeiro plano**: o
+criador de um alerta ativo pode ativar, com consentimento explícito, o
+compartilhamento da própria posição (`POST /alerts/:id/live-location/start`,
+`POST /alerts/:id/live-location`, `.../stop`, `GET .../live-location` e
+`.../history`); apenas membros atuais do grupo veem a posição em mapa com
+precisão e indicação de desatualização; pontos são validados, limitados em
+frequência e idempotentes; a sessão para automaticamente ao resolver/cancelar
+o alerta; eventos realtime não carregam coordenadas; retenção de 30 dias via
+`pnpm location:cleanup`. **Background location não foi implementado** (ver
+ADR 0007). Sem check-in ou trajeto seguro (próximas fases).
+
+**Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
+plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
+produção Android é necessária uma chave do Google Maps em
+`apps/mobile/app.json` (`expo.android.config.googleMaps.apiKey`) — nunca
+versione a chave real. Na web o mapa é substituído por um placeholder. A
+retenção de dados de localização deve ser executada periodicamente em
+produção (ex.: cron diário):
+
+```bash
+pnpm location:cleanup        # apaga localização de alertas encerrados há mais de 30 dias
+```
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
 (iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push

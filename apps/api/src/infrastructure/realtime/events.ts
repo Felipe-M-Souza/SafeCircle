@@ -17,6 +17,10 @@ export interface RealtimeEventDataMap {
   ALERT_ACKNOWLEDGEMENT_CHANGED: { alertId: string; groupId: string; userId: string };
   /** Enviado apenas ao usuário afetado, para ressincronizar grupos/permissões. */
   GROUP_MEMBERSHIP_CHANGED: { groupId: string; userId: string };
+  // Phase 6 — Localização ao Vivo: NUNCA carregam coordenadas; o cliente busca via REST.
+  ALERT_LIVE_LOCATION_STARTED: { alertId: string; groupId: string; sessionId: string };
+  ALERT_LIVE_LOCATION_UPDATED: { alertId: string; groupId: string; sessionId: string };
+  ALERT_LIVE_LOCATION_STOPPED: { alertId: string; groupId: string; sessionId: string };
 }
 
 export type RealtimeEventType = keyof RealtimeEventDataMap;

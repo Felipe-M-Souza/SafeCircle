@@ -15,6 +15,10 @@ export const REALTIME_EVENT_TYPES = [
   "ALERT_CANCELLED",
   "ALERT_ACKNOWLEDGEMENT_CHANGED",
   "GROUP_MEMBERSHIP_CHANGED",
+  // Phase 6 — nunca carregam coordenadas; o app busca o estado via REST.
+  "ALERT_LIVE_LOCATION_STARTED",
+  "ALERT_LIVE_LOCATION_UPDATED",
+  "ALERT_LIVE_LOCATION_STOPPED",
 ] as const;
 
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
@@ -75,6 +79,11 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
   return parsed;
 }
 
+/** Eventos que mudam o estado do alerta em si (não a localização ao vivo). */
 export function isAlertEvent(event: RealtimeEvent): boolean {
-  return event.type.startsWith("ALERT_");
+  return event.type.startsWith("ALERT_") && !isLiveLocationEvent(event);
+}
+
+export function isLiveLocationEvent(event: RealtimeEvent): boolean {
+  return event.type.startsWith("ALERT_LIVE_LOCATION_");
 }

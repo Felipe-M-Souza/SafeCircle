@@ -100,8 +100,6 @@ describe("Push ao criar alerta — destinatários", () => {
     for (const forbidden of [
       "latitude",
       "longitude",
-      String(SYNTHETIC_LOCATION.latitude),
-      String(SYNTHETIC_LOCATION.longitude),
       "Felipe",
       creator.email,
       memberA.email,
@@ -113,6 +111,9 @@ describe("Push ao criar alerta — destinatários", () => {
     ]) {
       expect(raw).not.toContain(forbidden);
     }
+    // Coordenadas como valores (UUIDs podem conter "-23"/"-46" como substring).
+    expect(raw).not.toMatch(new RegExp(`${SYNTHETIC_LOCATION.latitude}\\b`));
+    expect(raw).not.toMatch(new RegExp(`${SYNTHETIC_LOCATION.longitude}\\b`));
   });
 
   it("dispositivo desativado não recebe", async () => {

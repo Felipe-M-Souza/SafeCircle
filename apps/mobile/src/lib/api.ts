@@ -151,6 +151,53 @@ export interface AlertAcknowledgement {
   updatedAt: string;
 }
 
+// --- Localização ao vivo (Phase 6) ---
+
+export type LiveLocationStatus = "ACTIVE" | "STOPPED" | "INACTIVE";
+
+export interface LiveLocationPoint {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  altitude: number | null;
+  heading: number | null;
+  speed: number | null;
+  capturedAt: string;
+  receivedAt: string;
+}
+
+export interface LiveLocationSession {
+  sessionId: string;
+  status: "ACTIVE" | "STOPPED";
+  startedAt: string;
+  stoppedAt: string | null;
+}
+
+export interface LiveLocationState {
+  status: LiveLocationStatus;
+  sessionId: string | null;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  latest: LiveLocationPoint | null;
+}
+
+export interface LiveLocationHistory {
+  sessionId: string | null;
+  points: LiveLocationPoint[];
+}
+
+/** Ponto enviado pelo criador; `clientUpdateId` garante idempotência no retry. */
+export interface LiveLocationUpdateInput {
+  clientUpdateId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  altitude?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+  capturedAt: string;
+}
+
 // --- Notificações Push (Phase 4) ---
 
 export type PushPlatform = "IOS" | "ANDROID";
@@ -311,6 +358,26 @@ export function createApiClient(bridge?: AuthBridge) {
     },
     setAcknowledgement(alertId: string, type: AcknowledgementType): Promise<AlertAcknowledgement> {
       return authed<AlertAcknowledgement>("PUT", `/alerts/${alertId}/acknowledgement`, { type });
+    },
+
+    // --- Localização ao vivo (Phase 6) ---
+    startLiveLocation(alertId: string): Promise<LiveLocationSession> {
+      return authed<LiveLocationSession>("POST", `/alerts/${alertId}/live-location/start`);
+    },
+    sendLiveLocation(
+      alertId: string,
+      input: LiveLocationUpdateInput,
+    ): Promise<{ sessionId: string; point: LiveLocationPoint }> {
+      return authed("POST", `/alerts/${alertId}/live-location`, input);
+    },
+    stopLiveLocation(alertId: string): Promise<LiveLocationState> {
+      return authed<LiveLocationState>("POST", `/alerts/${alertId}/live-location/stop`);
+    },
+    getLiveLocation(alertId: string): Promise<LiveLocationState> {
+      return authed<LiveLocationState>("GET", `/alerts/${alertId}/live-location`);
+    },
+    getLiveLocationHistory(alertId: string): Promise<LiveLocationHistory> {
+      return authed<LiveLocationHistory>("GET", `/alerts/${alertId}/live-location/history`);
     },
 
     // --- Notificações Push (Phase 4) ---

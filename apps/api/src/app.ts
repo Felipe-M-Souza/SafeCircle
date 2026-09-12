@@ -62,6 +62,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
               "req.body.refreshToken",
               "req.body.location",
               "req.body.token",
+              // Phase 6 — localização ao vivo: nunca logar coordenadas.
+              "req.body.latitude",
+              "req.body.longitude",
+              "req.body.accuracy",
+              "req.body.altitude",
+              "req.body.heading",
+              "req.body.speed",
             ],
             remove: true,
           },
