@@ -26,3 +26,14 @@ export function authRateLimit(nodeEnv: string): { max: number; timeWindow: strin
   }
   return { max: 10, timeWindow: "1 minute" };
 }
+
+/**
+ * Limite para criação de check-ins (Phase 7): evita spam sem afetar o SOS
+ * nem outros endpoints (um check-in ativo por grupo já contém o volume).
+ */
+export function checkinRateLimit(nodeEnv: string): { max: number; timeWindow: string } {
+  if (nodeEnv === "test") {
+    return { max: 1_000_000, timeWindow: "1 minute" };
+  }
+  return { max: 20, timeWindow: "1 minute" };
+}

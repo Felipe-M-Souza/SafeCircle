@@ -14,7 +14,8 @@
     "db:check": "tsx src/scripts/db-check.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
-    "location:cleanup": "tsx src/scripts/location-cleanup.ts"
+    "location:cleanup": "tsx src/scripts/location-cleanup.ts",
+    "checkin:cleanup": "tsx src/scripts/checkin-cleanup.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

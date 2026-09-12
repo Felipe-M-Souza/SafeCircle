@@ -14,6 +14,8 @@ import { groupsRoutes } from "./modules/groups/groups.routes.js";
 import { meInvitationsRoutes } from "./modules/groups/me-invitations.routes.js";
 import { alertsRoutes } from "./modules/alerts/alerts.routes.js";
 import { pushDevicesRoutes } from "./modules/notifications/push-devices.routes.js";
+import { checkinsRoutes } from "./modules/checkins/checkins.routes.js";
+import { checkinSchedulerPlugin } from "./plugins/checkin-scheduler.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
 
@@ -29,6 +31,11 @@ export interface BuildAppOptions {
   databaseUrl?: string;
   /** Provedor de push injetável (testes usam FakePushProvider). Padrão: Expo. */
   pushProvider?: PushProvider;
+  /**
+   * Inicia o scheduler de check-ins com o servidor (Phase 7).
+   * Padrão: ligado, exceto em NODE_ENV=test (os testes chamam runOnce()).
+   */
+  checkinSchedulerAutoStart?: boolean;
 }
 
 function corsOptions(config: Config) {
@@ -105,6 +112,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(meInvitationsRoutes);
     await app.register(alertsRoutes);
     await app.register(pushDevicesRoutes);
+    await app.register(checkinsRoutes, { appConfig: config });
+    await app.register(checkinSchedulerPlugin, {
+      autoStart: options.checkinSchedulerAutoStart ?? config.nodeEnv !== "test",
+    });
   } else {
     app.log.warn("DATABASE_URL ausente: rotas de autenticação não registradas.");
   }
