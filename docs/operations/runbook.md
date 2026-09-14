@@ -20,7 +20,7 @@ curl -i http://<host>:<porta>/health
 ```
 
 - `200 {"status":"ok"}` → o processo responde.
-- Sem resposta / conexão recusada → o processo caiu ou não sobe. Ver §8.
+- Sem resposta / conexão recusada → o processo caiu ou não sobe. Ver §9.
 
 `/health` **não** consulta o banco de propósito: uma oscilação do PostgreSQL não
 deve fazer o orquestrador matar containers saudáveis.
@@ -63,7 +63,7 @@ válido; qualquer outro valor é substituído). A resposta sempre devolve
 
 **O que você NÃO vai encontrar no log, por decisão de projeto:** senha, hash,
 access/refresh token, push token, coordenadas, corpo de requisições sensíveis.
-Se algum desses aparecer, é um incidente de privacidade — ver §9.
+Se algum desses aparecer, é um incidente de privacidade — ver §10.
 
 ---
 
@@ -91,15 +91,17 @@ O token nunca aparece em log (o header `Authorization` é redigido).
 
 Todas as métricas usam o prefixo `safecircle_`. Séries úteis no plantão:
 
-| Métrica                                    | Para quê                                |
-| ------------------------------------------ | --------------------------------------- |
-| `safecircle_http_requests_total`           | Volume e taxa de erro (`status_class`)  |
-| `safecircle_http_request_duration_seconds` | Latência (p95)                          |
-| `safecircle_realtime_connections`          | Conexões WebSocket abertas agora        |
-| `safecircle_background_tasks_pending`      | Fila em memória de efeitos pós-resposta |
-| `safecircle_push_failures_total`           | Falhas de push                          |
-| `safecircle_scheduler_runs_total`          | Schedulers rodando                      |
-| `safecircle_audit_failures_total`          | Auditoria falhando                      |
+| Métrica                                    | Para quê                               |
+| ------------------------------------------ | -------------------------------------- |
+| `safecircle_http_requests_total`           | Volume e taxa de erro (`status_class`) |
+| `safecircle_http_request_duration_seconds` | Latência (p95)                         |
+| `safecircle_realtime_connections`          | Conexões WebSocket abertas agora       |
+| `safecircle_outbox_backlog`                | Efeitos esperando entrega (ver §7)     |
+| `safecircle_outbox_backlog{status="dead"}` | Efeitos que desistimos de entregar     |
+| `safecircle_background_tasks_pending`      | Fila em memória (residual; ver §6)     |
+| `safecircle_push_failures_total`           | Falhas de push                         |
+| `safecircle_scheduler_runs_total`          | Schedulers rodando                     |
+| `safecircle_audit_failures_total`          | Auditoria falhando                     |
 
 ---
 
@@ -119,7 +121,8 @@ grep '"event":"push_dispatch_failed"' /var/log/safecircle/api.log
 3. Causas comuns:
    - **Provedor indisponível (Expo)**: `result="failed"` em lote. O alerta/
      check-in/trajeto **não** é revertido — o estado no banco está correto e o
-     app mostra tudo ao abrir. Não há retry persistente nesta fase.
+     app mostra tudo ao abrir. Desde a Phase 10 o envio **é reagendado** pela
+     outbox com backoff, até 8 tentativas ou 20 minutos. Ver §7.
    - **Token inválido**: `safecircle_push_invalid_tokens_total` sobe e o
      dispositivo é desativado automaticamente. Esperado quando alguém desinstala
      o app.
@@ -127,6 +130,9 @@ grep '"event":"push_dispatch_failed"' /var/log/safecircle/api.log
      `push_dispatch_completed` — não é falha.
 
 Push **nunca** deve tornar a API not-ready: uma falha de push não bloqueia SOS.
+
+Sucesso parcial de um lote **não** gera reenvio: reenviar o lote inteiro por
+causa de um token duplicaria a notificação de quem já recebeu.
 
 ---
 
@@ -147,7 +153,10 @@ grep '"event":"scheduler_item_effects_failed"' /var/log/safecircle/api.log
 
 3. O estado vive no banco: **reiniciar a API recupera** os vencimentos pendentes
    na primeira execução. Nada se perde.
-4. Limitação conhecida: o scheduler roda **dentro da API, em instância única**.
+4. Desde a Phase 10 o scheduler apenas executa a transição de domínio; push e
+   realtime do vencimento saem pela outbox, na mesma transação. Se o vencimento
+   ocorreu e ninguém foi avisado, o problema está na entrega (§7), não aqui.
+5. Limitação conhecida: o scheduler roda **dentro da API, em instância única**.
    Com várias réplicas cada uma faz polling, mas o `UPDATE` condicional garante
    que cada item vence uma vez só.
 
@@ -155,21 +164,174 @@ grep '"event":"scheduler_item_effects_failed"' /var/log/safecircle/api.log
 
 ## 6. Tarefas em segundo plano acumulando
 
+Desde a Phase 10 push, realtime e auditoria **não passam mais por aqui** — vão
+para a outbox (§7). O runner em memória ficou para trabalho acessório, e
 `safecircle_background_tasks_pending` deve oscilar perto de zero.
 
-Crescimento contínuo indica efeitos (push/realtime/auditoria) travando.
+Crescimento contínuo indica tarefa acessória travando.
 
 ```bash
 grep '"event":"background_task_failed"' /var/log/safecircle/api.log
 ```
 
 As tarefas vivem **no processo**: se a API cair antes de concluí-las, não há
-retry persistente (limitação documentada nos ADRs 0005 e 0010). O encerramento
-limpo aguarda até 10 s pelas tarefas pendentes.
+retry persistente. É exatamente por isso que os efeitos que importam saíram
+daqui (ADR 0011). O encerramento limpo aguarda até 10 s pelas pendentes.
 
 ---
 
-## 7. WebSocket (realtime)
+## 7. Outbox transacional
+
+Desde a Phase 10, push, realtime e auditoria **não saem mais da requisição**:
+são gravados na tabela `outbox_events` na mesma transação da mudança de domínio
+e entregues depois por um worker. Detalhes e trade-offs no ADR 0011.
+
+Consequência para o plantão: **efeito pendente não é efeito perdido**. Se o push
+não saiu, o evento está no banco esperando — e é inspecionável.
+
+A entrega é **at-least-once**. Um push pode chegar duas vezes; realtime e
+auditoria são idempotentes por construção. Não existe exactly-once aqui.
+
+### 7.1 Estado da fila
+
+```bash
+pnpm outbox:status
+```
+
+Saída: pendentes, em processamento, em dead-letter e a idade do pendente mais
+antigo. As mesmas leituras em métricas:
+
+| Métrica                                          | Leitura                               |
+| ------------------------------------------------ | ------------------------------------- |
+| `safecircle_outbox_backlog{status="pending"}`    | Efeitos esperando entrega             |
+| `safecircle_outbox_backlog{status="processing"}` | Reivindicados agora por algum worker  |
+| `safecircle_outbox_backlog{status="dead"}`       | Desistimos de entregar; exige decisão |
+| `safecircle_outbox_oldest_pending_age_seconds`   | Há quanto tempo o mais antigo espera  |
+| `safecircle_outbox_enqueued_total`               | Efeitos gravados, por tipo            |
+| `safecircle_outbox_processed_total`              | Efeitos concluídos, por tipo          |
+| `safecircle_outbox_retries_total`                | Reprocessamentos agendados            |
+| `safecircle_outbox_dead_total`                   | Eventos que viraram dead-letter       |
+| `safecircle_outbox_expired_total`                | Descartados por expiração (ver §7.6)  |
+
+Em operação normal o backlog oscila perto de zero e a idade do pendente mais
+antigo fica abaixo de poucos segundos.
+
+### 7.2 Backlog crescendo
+
+Sintoma: `safecircle_outbox_backlog{status="pending"}` sobe continuamente, ou a
+idade do pendente mais antigo passa de ~60 s.
+
+1. **O worker está ligado?** Procure no log de startup:
+
+```bash
+grep '"event":"outbox_worker_disabled"' /var/log/safecircle/api.log
+grep '"event":"outbox_worker_started"' /var/log/safecircle/api.log
+```
+
+`outbox_worker_disabled` significa `OUTBOX_ENABLED=false`: os efeitos estão
+sendo gravados e **ninguém está entregando**. Religue a variável e reinicie.
+
+2. **O worker está falhando em ciclo?**
+
+```bash
+grep '"event":"outbox_worker_cycle_failed"' /var/log/safecircle/api.log
+```
+
+Normalmente é o banco: confira `/ready` e a conectividade.
+
+3. **O destino está fora do ar?** Um pico de
+   `safecircle_outbox_retries_total{event_type="PUSH_..."}` com backlog subindo
+   indica provedor indisponível, não problema do worker. Ver §4.
+
+4. **Vazão insuficiente**: se os retries não sobem e o backlog cresce mesmo
+   assim, aumente `OUTBOX_BATCH_SIZE` ou `OUTBOX_CONCURRENCY`, ou suba mais uma
+   instância — o claim usa `FOR UPDATE SKIP LOCKED` e vários workers sobre a
+   mesma fila são seguros.
+
+### 7.3 Dead-letter
+
+Um evento vira `DEAD` quando esgota as tentativas da família (push 8, realtime
+3, auditoria 12) ou quando falha de forma permanente (payload inválido, versão
+desconhecida). Ele **para de ser tentado** e espera decisão humana.
+
+```bash
+pnpm outbox:list-dead
+```
+
+A saída traz id, tipo, número de tentativas e `last_error_code` — um código
+curto de conjunto fechado, nunca stack trace nem resposta do provedor:
+
+| `last_error_code`           | Significado                                   |
+| --------------------------- | --------------------------------------------- |
+| `PUSH_PROVIDER_FAILED`      | Expo recusou o lote inteiro, repetidamente    |
+| `REALTIME_PUBLISH_FAILED`   | Hub indisponível na hora da publicação        |
+| `AUDIT_INSERT_FAILED`       | Escrita da trilha falhando (investigar banco) |
+| `PAYLOAD_INVALID`           | Bug: o evento nunca vai processar             |
+| `UNSUPPORTED_EVENT_VERSION` | Evento antigo após mudança de contrato        |
+| `UNKNOWN_EVENT_TYPE`        | Bug ou linha adulterada                       |
+| `HANDLER_UNEXPECTED_ERROR`  | Exceção não prevista no handler               |
+
+### 7.4 Reprocessar manualmente
+
+```bash
+pnpm outbox:retry-dead -- --id <uuid>
+```
+
+O evento volta para `PENDING` com as tentativas zeradas. O payload **não é
+editável** por aqui — a CLI reprocessa o que foi gravado, não reescreve
+histórico.
+
+**Quando reprocessar:** a causa foi transitória e já passou (provedor voltou,
+banco normalizou), e o efeito ainda faz sentido agora.
+
+**Quando NÃO reprocessar:**
+
+- `PAYLOAD_INVALID`, `UNKNOWN_EVENT_TYPE` ou `UNSUPPORTED_EVENT_VERSION`: é bug
+  ou contrato quebrado. Reprocessar vai falhar de novo; corrija o código.
+- Push de um alerta antigo: entregar um SOS de horas atrás assusta sem ajudar.
+  Prefira deixar em `DEAD`.
+- Realtime vencido: o app já ressincronizou via REST. Não há o que recuperar.
+- Eventos `PENDING` ou `PROCESSING`: a CLI recusa de propósito. Reenfileirar
+  trabalho que já está na fila cria processamento concorrente do mesmo efeito.
+
+Reprocessar um push pode **duplicar** a notificação para quem já recebeu — o
+lote inteiro é reenviado. Considere isso antes de reprocessar em massa.
+
+### 7.5 Lease e worker morto
+
+Um evento reivindicado fica `PROCESSING` com `locked_at`/`locked_by`. Se o
+processo morre no meio, a linha fica nesse estado — e **isso se resolve
+sozinho**: passado o lease (`OUTBOX_LEASE_MS`, padrão 60 s), o evento volta a
+ser candidato no próximo claim.
+
+Portanto: um punhado de `PROCESSING` logo após um restart é **normal**. Só
+investigue se `safecircle_outbox_backlog{status="processing"}` ficar alto e
+parado por vários minutos, o que sugere handlers travados em I/O externo.
+
+Nunca "conserte" isso com `UPDATE` manual enquanto o worker estiver rodando.
+
+### 7.6 Expiração
+
+Push expira em 20 minutos e realtime em 5; auditoria **nunca** expira. Evento
+expirado é encerrado sem executar o efeito e contabilizado em
+`safecircle_outbox_expired_total`.
+
+Isso é comportamento desejado, não falha: depois de um outage longo, entregar
+notificações velhas em massa faz mais mal que bem. Um pico nessa métrica é o
+sinal de que houve um outage — investigue a causa, não a expiração.
+
+### 7.7 Quando reiniciar
+
+Reiniciar a API é seguro do ponto de vista da outbox: nada se perde. O que
+estava `PENDING` continua `PENDING`; o que estava `PROCESSING` volta pelo lease.
+
+Reinicie quando o worker não estiver reivindicando (sem `outbox_event_claimed`
+no log, backlog subindo) e o banco estiver saudável. O encerramento limpo para
+de reivindicar eventos novos e aguarda até 10 s pelos handlers em andamento.
+
+---
+
+## 8. WebSocket (realtime)
 
 | Métrica                                      | Leitura                  |
 | -------------------------------------------- | ------------------------ |
@@ -186,7 +348,7 @@ plano e ao puxar para atualizar). Não é incidente de severidade máxima.
 
 ---
 
-## 8. Reinício e encerramento
+## 9. Reinício e encerramento
 
 O encerramento é gracioso e observável. Ao receber `SIGTERM`/`SIGINT`:
 
@@ -207,7 +369,7 @@ grep -E '"event":"(application_starting|application_ready|shutdown_started|shutd
 
 ---
 
-## 9. Suspeita de vazamento de dado sensível em log
+## 10. Suspeita de vazamento de dado sensível em log
 
 Trate como incidente de privacidade.
 
@@ -224,7 +386,7 @@ grep -E '(latitude|longitude|passwordHash|ExponentPushToken|Bearer )' /var/log/s
 
 ---
 
-## 10. Comandos de manutenção
+## 11. Comandos de manutenção
 
 Todos leem `DATABASE_URL` do ambiente. Devem rodar periodicamente (cron diário).
 
@@ -233,6 +395,7 @@ pnpm location:cleanup   # localização de alertas encerrados há mais de 30 dia
 pnpm checkin:cleanup    # check-ins finalizados há mais de 90 dias
 pnpm journey:cleanup    # localização de trajetos (30 d) e trajetos finalizados (90 d)
 pnpm audit:cleanup      # eventos de auditoria com mais de 180 dias
+pnpm outbox:cleanup     # outbox processada (30 d) e dead-letter (90 d)
 ```
 
 Outros:
@@ -243,11 +406,21 @@ pnpm --filter @safecircle/api db:migrate   # aplica migrations pendentes
 ```
 
 Nenhum comando de retenção apaga entidades de domínio fora da sua política:
-`audit:cleanup` toca **apenas** `audit_events`.
+`audit:cleanup` toca **apenas** `audit_events`. `outbox:cleanup` **nunca**
+apaga eventos `PENDING` ou `PROCESSING` — apagar trabalho pendente é perder
+exatamente o que a tabela existe para proteger.
+
+Operação da outbox (§7):
+
+```bash
+pnpm outbox:status                     # backlog e idade do pendente mais antigo
+pnpm outbox:list-dead                  # eventos que exigem decisão humana
+pnpm outbox:retry-dead -- --id <uuid>  # reenfileira UM evento DEAD
+```
 
 ---
 
-## 11. Sinais operacionais sugeridos
+## 12. Sinais operacionais sugeridos
 
 Rascunho inicial — não há alerting externo configurado nesta fase.
 
@@ -259,8 +432,11 @@ Rascunho inicial — não há alerting externo configurado nesta fase.
 | `safecircle_push_failures_total` muito acima do normal        | Ver §4                          |
 | `safecircle_background_tasks_pending` crescendo continuamente | Ver §6                          |
 | `safecircle_audit_failures_total` > 0                         | Auditoria degradada; ver log    |
+| `safecircle_outbox_oldest_pending_age_seconds` > 60 s         | Ver §7.2                        |
+| `safecircle_outbox_backlog{status="dead"}` > 0                | Ver §7.3                        |
+| `safecircle_outbox_expired_total` subindo                     | Houve outage; ver §7.6          |
 
-## 12. SLOs iniciais (rascunho)
+## 13. SLOs iniciais (rascunho)
 
 Metas internas de trabalho, **não** garantia contratual:
 
@@ -270,14 +446,17 @@ Metas internas de trabalho, **não** garantia contratual:
 
 ---
 
-## 13. Limitações conhecidas
+## 14. Limitações conhecidas
 
 - **Scheduler e realtime em instância única** (ADRs 0006, 0008, 0009).
-- **Sem retry persistente** para push/realtime/auditoria: efeitos em memória,
-  perdidos se o processo morrer antes de concluí-los (ADR 0010; a evolução é
-  outbox + worker).
-- **Falha de auditoria não desfaz a operação** de negócio — é registrada e
-  contabilizada, mas o evento pode não existir na trilha.
+- **Entrega at-least-once** (ADR 0011): um push pode chegar duas vezes.
+  Realtime e auditoria são idempotentes; push não é.
+- **Worker da outbox no mesmo processo da API** nesta fase: um pico de tráfego
+  concorre com a entrega de efeitos.
+- **Ordem de entrega não garantida** entre eventos da outbox. Nenhum efeito
+  atual depende de ordem.
+- **Falha de auditoria não desfaz a operação** de negócio, mas desde a Phase 10
+  o evento é reprocessado até entrar na trilha (12 tentativas, sem expiração).
 - **Localização ao vivo só em primeiro plano** (ADRs 0007, 0009).
 - **Sem tracing distribuído, APM ou dashboards hospedados**: a correlação é por
   `requestId` no log e as métricas são expostas para coleta externa.

@@ -66,6 +66,13 @@ centralizada, `GET /ready` verifica o banco (503 quando não pronta) enquanto
 Prometheus (desabilitado por padrão, protegível por token) e ações críticas
 deixam trilha em `audit_events`, com retenção de 180 dias via
 `pnpm audit:cleanup` (ver ADR 0010 e o [runbook](docs/operations/runbook.md)).
+Phase 10 (Outbox Transacional, Workers e Entregas Confiáveis) concluída, também
+sem mudança funcional: push, realtime e auditoria passaram a ser gravados na
+**mesma transação** da mudança de domínio, na tabela `outbox_events`, e
+entregues por um worker persistente com claim por `FOR UPDATE SKIP LOCKED`,
+lease, retry com backoff exponencial e dead-letter. A janela em que um alerta
+era criado e a notificação se perdia no restart deixou de existir. A entrega é
+**at-least-once** (ver ADR 0011).
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -123,6 +130,41 @@ privada. A trilha de auditoria precisa de limpeza periódica (cron diário):
 ```bash
 pnpm audit:cleanup           # apaga eventos de auditoria com mais de 180 dias
 ```
+
+**Outbox transacional (Phase 10):** nenhuma rota mudou de contrato. O que mudou
+é que efeito não se perde mais: ou a mudança de domínio e seus efeitos são
+gravados no mesmo `COMMIT`, ou nenhum dos dois existe. As decisões estão no
+ADR 0011 e a operação na seção 7 do [runbook](docs/operations/runbook.md).
+
+A entrega é **at-least-once**, não exactly-once: um push pode chegar duas vezes
+se o processo cair entre o envio e a marcação de concluído. Realtime e auditoria
+são idempotentes por construção (o `eventId` publicado é estável entre
+tentativas e a trilha tem chave única por evento de origem). Preferimos duplicar
+a perder um pedido de ajuda.
+
+Variáveis novas (ver `.env.example`; nenhuma é segredo):
+
+| Variável                  | Padrão  | Efeito                                                      |
+| ------------------------- | ------- | ----------------------------------------------------------- |
+| `OUTBOX_ENABLED`          | `true`  | `false` grava os efeitos mas não entrega nada.              |
+| `OUTBOX_POLL_INTERVAL_MS` | `500`   | Intervalo de polling do worker (100–60000).                 |
+| `OUTBOX_BATCH_SIZE`       | `50`    | Eventos reivindicados por ciclo (1–500).                    |
+| `OUTBOX_CONCURRENCY`      | `5`     | Entregas simultâneas por ciclo (1–50).                      |
+| `OUTBOX_LEASE_MS`         | `60000` | `PROCESSING` mais antigo que isso volta para a fila.        |
+
+Comandos de operação e retenção (o de limpeza em cron diário):
+
+```bash
+pnpm outbox:status                     # backlog e idade do pendente mais antigo
+pnpm outbox:list-dead                  # eventos que exigem decisão humana
+pnpm outbox:retry-dead -- --id <uuid>  # reenfileira UM evento em dead-letter
+pnpm outbox:cleanup                    # processados (30 d) e dead-letter (90 d)
+```
+
+`outbox:cleanup` **nunca** apaga eventos pendentes ou em processamento, e
+`retry-dead` só aceita eventos em dead-letter — reenfileirar trabalho que já
+está na fila criaria processamento concorrente do mesmo efeito. O payload não é
+editável por nenhum comando: a CLI reprocessa, não reescreve histórico.
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
 (iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push
