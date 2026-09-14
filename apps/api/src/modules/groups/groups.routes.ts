@@ -1,7 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
-import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
 import { authRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
 import {
@@ -45,15 +44,19 @@ export async function groupsRoutes(
   // Todas as rotas de grupos exigem autenticação.
   app.addHook("preHandler", app.authenticate);
 
+  /** Correlaciona os efeitos enfileirados com a requisição que os originou. */
+  const actionOptions = (request: FastifyRequest) => ({
+    requestId: typeof request.id === "string" ? request.id : null,
+  });
+
   app.post("/groups", async (request, reply) => {
     const input = createGroupSchema.parse(request.body);
-    const group = await createGroup(app.db, request.auth.userId, input.name);
-    app.auditRequest(request, {
-      eventType: "GROUP_CREATED",
-      targetType: "GROUP",
-      targetId: group.id,
-      groupId: group.id,
-    });
+    const group = await createGroup(
+      app.db,
+      request.auth.userId,
+      input.name,
+      actionOptions(request),
+    );
     return reply.status(201).send(group);
   });
 
@@ -86,30 +89,12 @@ export async function groupsRoutes(
     return listMembers(app.db, request.auth.userId, groupId);
   });
 
-  // Phase 5: avisa o usuário afetado para ressincronizar grupos/permissões.
-  const notifyMembershipChanged = (userId: string, groupId: string) => {
-    app.background.run("realtime:GROUP_MEMBERSHIP_CHANGED", async () => {
-      app.realtime.publishToUser(
-        userId,
-        createRealtimeEvent("GROUP_MEMBERSHIP_CHANGED", { groupId, userId }),
-      );
-    });
-  };
-
   app.delete("/groups/:groupId/members/me", async (request, reply) => {
     const groupId = parseUuid(
       (request.params as { groupId: string }).groupId,
       errors.groupNotFound,
     );
-    await leaveGroup(app.db, request.auth.userId, groupId);
-    app.auditRequest(request, {
-      eventType: "GROUP_MEMBER_REMOVED",
-      targetType: "GROUP_MEMBERSHIP",
-      targetId: request.auth.userId,
-      groupId,
-      metadata: { source: "self" },
-    });
-    notifyMembershipChanged(request.auth.userId, groupId);
+    await leaveGroup(app.db, request.auth.userId, groupId, actionOptions(request));
     return reply.status(204).send();
   });
 
@@ -117,15 +102,7 @@ export async function groupsRoutes(
     const params = request.params as { groupId: string; userId: string };
     const groupId = parseUuid(params.groupId, errors.groupNotFound);
     const targetUserId = parseUuid(params.userId, errors.memberNotFound);
-    await removeMember(app.db, request.auth.userId, groupId, targetUserId);
-    app.auditRequest(request, {
-      eventType: "GROUP_MEMBER_REMOVED",
-      targetType: "GROUP_MEMBERSHIP",
-      targetId: targetUserId,
-      groupId,
-      metadata: { source: "admin" },
-    });
-    notifyMembershipChanged(targetUserId, groupId);
+    await removeMember(app.db, request.auth.userId, groupId, targetUserId, actionOptions(request));
     return reply.status(204).send();
   });
 
@@ -140,14 +117,8 @@ export async function groupsRoutes(
       groupId,
       targetUserId,
       input.role,
+      actionOptions(request),
     );
-    app.auditRequest(request, {
-      eventType: "GROUP_MEMBER_ROLE_CHANGED",
-      targetType: "GROUP_MEMBERSHIP",
-      targetId: targetUserId,
-      groupId,
-      metadata: { role: input.role },
-    });
     return member;
   });
 

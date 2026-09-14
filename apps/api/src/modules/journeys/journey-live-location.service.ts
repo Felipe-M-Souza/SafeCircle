@@ -6,6 +6,12 @@ import {
   safeJourneys,
   type LiveLocationSessionStatus,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueLiveLocationStartedEffects,
+  enqueueLiveLocationStoppedEffects,
+  enqueueLiveLocationUpdatedEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import type { LiveLocationUpdateInput } from "../alerts/alerts.schemas.js";
 import {
@@ -151,6 +157,7 @@ export async function startJourneyLiveLocation(
   db: Database,
   userId: string,
   journeyId: string,
+  options: DomainActionOptions = {},
 ): Promise<{ session: LiveLocationSessionView; created: boolean }> {
   const journey = await loadAccessibleJourney(db, userId, journeyId);
   requireJourneyOwner(journey, userId);
@@ -162,13 +169,25 @@ export async function startJourneyLiveLocation(
     return { session: toSessionView(existing), created: false };
   }
   try {
-    const [created] = await db
-      .insert(journeyLocationSessions)
-      .values({ journeyId, userId, status: "ACTIVE" })
-      .returning(sessionSelection);
-    if (!created) {
-      throw new Error("Falha ao iniciar localização do trajeto.");
-    }
+    // Phase 10: sessão e efeitos no MESMO COMMIT.
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(journeyLocationSessions)
+        .values({ journeyId, userId, status: "ACTIVE" })
+        .returning(sessionSelection);
+      if (!row) {
+        throw new Error("Falha ao iniciar localização do trajeto.");
+      }
+      await enqueueLiveLocationStartedEffects(tx, {
+        resource: "journey",
+        resourceId: journeyId,
+        groupId: journey.groupId,
+        sessionId: row.id,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
+      return row;
+    });
     return { session: toSessionView(created), created: true };
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -193,6 +212,7 @@ export async function sendJourneyLiveLocationUpdate(
   journeyId: string,
   input: LiveLocationUpdateInput,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<SendJourneyLocationResult> {
   const journey = await loadAccessibleJourney(db, userId, journeyId);
   requireJourneyOwner(journey, userId);
@@ -239,24 +259,41 @@ export async function sendJourneyLiveLocationUpdate(
     throw errors.locationUpdateTooFrequent();
   }
 
-  const [inserted] = await db
-    .insert(journeyLocationUpdates)
-    .values({
-      sessionId: session.id,
-      journeyId,
-      clientUpdateId: input.clientUpdateId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracy: input.accuracy ?? null,
-      altitude: input.altitude ?? null,
-      heading: input.heading ?? null,
-      speed: input.speed ?? null,
-      capturedAt,
-    })
-    .onConflictDoNothing({
-      target: [journeyLocationUpdates.sessionId, journeyLocationUpdates.clientUpdateId],
-    })
-    .returning(pointSelection);
+  // Phase 10: ponto e evento realtime no MESMO COMMIT.
+  // Phase 10: ponto e evento realtime no MESMO COMMIT.
+  const inserted = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(journeyLocationUpdates)
+      .values({
+        sessionId: session.id,
+        journeyId,
+        clientUpdateId: input.clientUpdateId,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        accuracy: input.accuracy ?? null,
+        altitude: input.altitude ?? null,
+        heading: input.heading ?? null,
+        speed: input.speed ?? null,
+        capturedAt,
+      })
+      .onConflictDoNothing({
+        target: [journeyLocationUpdates.sessionId, journeyLocationUpdates.clientUpdateId],
+      })
+      .returning(pointSelection);
+
+    // Retry idempotente (row ausente) não republica: o evento já foi enfileirado.
+    if (row) {
+      await enqueueLiveLocationUpdatedEffects(tx, {
+        resource: "journey",
+        resourceId: journeyId,
+        groupId: journey.groupId,
+        sessionId: session.id,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
+    }
+    return row;
+  });
 
   if (inserted) {
     return { sessionId: session.id, point: toPointView(inserted), replayed: false };
@@ -272,21 +309,39 @@ export async function stopJourneyLiveLocation(
   db: Database,
   userId: string,
   journeyId: string,
+  options: DomainActionOptions = {},
 ): Promise<{ state: LiveLocationStateView; changed: boolean }> {
   const journey = await loadAccessibleJourney(db, userId, journeyId);
   requireJourneyOwner(journey, userId);
 
   const now = new Date();
-  const stopped = await db
-    .update(journeyLocationSessions)
-    .set({ status: "STOPPED", stoppedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(journeyLocationSessions.journeyId, journeyId),
-        eq(journeyLocationSessions.status, "ACTIVE"),
-      ),
-    )
-    .returning({ id: journeyLocationSessions.id });
+  // Phase 10: parada e efeitos no MESMO COMMIT.
+  const stopped = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(journeyLocationSessions)
+      .set({ status: "STOPPED", stoppedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(journeyLocationSessions.journeyId, journeyId),
+          eq(journeyLocationSessions.status, "ACTIVE"),
+        ),
+      )
+      .returning({ id: journeyLocationSessions.id });
+
+    const sessionId = rows[0]?.id;
+    if (sessionId) {
+      await enqueueLiveLocationStoppedEffects(tx, {
+        resource: "journey",
+        resourceId: journeyId,
+        groupId: journey.groupId,
+        sessionId,
+        actorUserId: userId,
+        source: "manual",
+        requestId: options.requestId ?? null,
+      });
+    }
+    return rows;
+  });
 
   return { state: await buildState(db, journeyId), changed: stopped.length > 0 };
 }

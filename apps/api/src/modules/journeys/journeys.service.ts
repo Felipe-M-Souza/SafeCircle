@@ -7,6 +7,12 @@ import {
   users,
   type JourneyStatus,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueJourneyCreatedEffects,
+  enqueueJourneyOverdueEffects,
+  enqueueJourneyTransitionEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { hashRequestPayload } from "../../shared/idempotency.js";
 import { findMembershipRole, requireMembership } from "../groups/authorization.js";
@@ -206,6 +212,7 @@ export async function createJourney(
   input: CreateJourneyInput,
   idempotencyKey: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<{ journey: JourneyView; replayed: boolean }> {
   await requireMembership(db, input.groupId, userId);
   const expectedArrivalAt = validateExpectedArrival(input.expectedArrivalAt, now);
@@ -251,6 +258,16 @@ export async function createJourney(
             eq(idempotencyKeys.key, idempotencyKey),
           ),
         );
+      // Phase 10: efeitos na MESMA transação do trajeto.
+      await enqueueJourneyCreatedEffects(tx, {
+        journeyId: created.id,
+        groupId: input.groupId,
+        ownerUserId: userId,
+        actorUserId: userId,
+        hasDestination: destinationLabel !== null,
+        liveLocationEnabled,
+        requestId: options.requestId ?? null,
+      });
       return created.id;
     });
     return { journey: await loadView(db, journeyId), replayed: false };
@@ -333,6 +350,7 @@ export async function arriveJourney(
   userId: string,
   journeyId: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<JourneyTransitionResult> {
   const row = await loadOwned(db, userId, journeyId);
   if (row.status === "ARRIVED") return { journey: toView(row), changed: false };
@@ -348,6 +366,15 @@ export async function arriveJourney(
       .returning({ id: safeJourneys.id });
     if (updated.length === 0) return false;
     await stopActiveJourneySession(tx, journeyId, now);
+    // Phase 10: efeitos no MESMO COMMIT da transição.
+    await enqueueJourneyTransitionEffects(tx, {
+      journeyId,
+      groupId: row.groupId,
+      ownerUserId: row.userId,
+      actorUserId: userId,
+      transition: "ARRIVED",
+      requestId: options.requestId ?? null,
+    });
     return true;
   });
 
@@ -368,6 +395,7 @@ export async function cancelJourney(
   userId: string,
   journeyId: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<JourneyTransitionResult> {
   const row = await loadOwned(db, userId, journeyId);
   if (row.status === "CANCELLED") return { journey: toView(row), changed: false };
@@ -383,6 +411,15 @@ export async function cancelJourney(
       .returning({ id: safeJourneys.id });
     if (updated.length === 0) return false;
     await stopActiveJourneySession(tx, journeyId, now);
+    // Phase 10: efeitos no MESMO COMMIT da transição.
+    await enqueueJourneyTransitionEffects(tx, {
+      journeyId,
+      groupId: row.groupId,
+      ownerUserId: row.userId,
+      actorUserId: userId,
+      transition: "CANCELLED",
+      requestId: options.requestId ?? null,
+    });
     return true;
   });
 
@@ -416,28 +453,40 @@ export async function markOverdueBatch(
   now: Date,
   batchSize: number,
 ): Promise<OverdueJourney[]> {
-  const due = db
-    .select({ id: safeJourneys.id })
-    .from(safeJourneys)
-    .where(and(eq(safeJourneys.status, "ACTIVE"), lte(safeJourneys.expectedArrivalAt, now)))
-    .orderBy(safeJourneys.expectedArrivalAt)
-    .limit(batchSize);
+  // Phase 10: transição e efeitos no MESMO COMMIT (ver checkins.service).
+  return db.transaction(async (tx) => {
+    const due = tx
+      .select({ id: safeJourneys.id })
+      .from(safeJourneys)
+      .where(and(eq(safeJourneys.status, "ACTIVE"), lte(safeJourneys.expectedArrivalAt, now)))
+      .orderBy(safeJourneys.expectedArrivalAt)
+      .limit(batchSize);
 
-  return db
-    .update(safeJourneys)
-    .set({ status: "OVERDUE", overdueAt: now, updatedAt: now })
-    .where(
-      and(
-        inArray(safeJourneys.id, due),
-        eq(safeJourneys.status, "ACTIVE"),
-        lte(safeJourneys.expectedArrivalAt, now),
-      ),
-    )
-    .returning({
-      id: safeJourneys.id,
-      userId: safeJourneys.userId,
-      groupId: safeJourneys.groupId,
-    });
+    const overdue = await tx
+      .update(safeJourneys)
+      .set({ status: "OVERDUE", overdueAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(safeJourneys.id, due),
+          eq(safeJourneys.status, "ACTIVE"),
+          lte(safeJourneys.expectedArrivalAt, now),
+        ),
+      )
+      .returning({
+        id: safeJourneys.id,
+        userId: safeJourneys.userId,
+        groupId: safeJourneys.groupId,
+      });
+
+    for (const journey of overdue) {
+      await enqueueJourneyOverdueEffects(tx, {
+        journeyId: journey.id,
+        groupId: journey.groupId,
+        ownerUserId: journey.userId,
+      });
+    }
+    return overdue;
+  });
 }
 
 /**

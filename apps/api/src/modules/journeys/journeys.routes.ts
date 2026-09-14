@@ -1,7 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
-import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
 import { journeyTransitionsTotal, liveLocationUpdatesTotal } from "../../observability/metrics.js";
 import { journeyRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
@@ -22,7 +21,6 @@ import {
   getJourney,
   listGroupJourneys,
   listMyJourneys,
-  type JourneyView,
 } from "./journeys.service.js";
 
 export interface JourneysRoutesOptions {
@@ -49,26 +47,10 @@ export async function journeysRoutes(
 ): Promise<void> {
   app.addHook("preHandler", app.authenticate);
 
-  const publish = (
-    type: "JOURNEY_CREATED" | "JOURNEY_ARRIVED" | "JOURNEY_CANCELLED" | "JOURNEY_LOCATION_UPDATED",
-    journey: { id: string; groupId: string; userId: string },
-  ) => {
-    app.background.run(`realtime:${type}`, () =>
-      app.realtime.publishToGroup(
-        journey.groupId,
-        createRealtimeEvent(type, {
-          journeyId: journey.id,
-          groupId: journey.groupId,
-          userId: journey.userId,
-        }),
-      ),
-    );
-  };
-
-  const publishJourney = (
-    type: "JOURNEY_CREATED" | "JOURNEY_ARRIVED" | "JOURNEY_CANCELLED",
-    journey: JourneyView,
-  ) => publish(type, { id: journey.id, groupId: journey.groupId, userId: journey.user.id });
+  /** Correlaciona os efeitos enfileirados com a requisição que os originou. */
+  const actionOptions = (request: FastifyRequest) => ({
+    requestId: typeof request.id === "string" ? request.id : null,
+  });
 
   const journeyIdOf = (request: { params: unknown }) =>
     parseUuid((request.params as { journeyId: string }).journeyId, errors.journeyNotFound);
@@ -86,23 +68,14 @@ export async function journeysRoutes(
         request.auth.userId,
         input,
         idempotencyKey,
+        new Date(),
+        actionOptions(request),
       );
       if (replayed) {
+        // Replay idempotente NÃO enfileira nada de novo (ver serviço).
         reply.header("Idempotent-Replayed", "true");
       } else {
-        publishJourney("JOURNEY_CREATED", journey);
         journeyTransitionsTotal.inc({ transition: "created" });
-        app.auditRequest(request, {
-          eventType: "JOURNEY_CREATED",
-          targetType: "JOURNEY",
-          targetId: journey.id,
-          groupId: journey.groupId,
-          // Allow-listed: nunca o rótulo do destino em si.
-          metadata: {
-            hasDestination: journey.destinationLabel !== null,
-            liveLocationEnabled: journey.liveLocationEnabled,
-          },
-        });
       }
       return reply.status(201).send(journey);
     },
@@ -122,17 +95,10 @@ export async function journeysRoutes(
       app.db,
       request.auth.userId,
       journeyIdOf(request),
+      new Date(),
+      actionOptions(request),
     );
-    if (changed) {
-      publishJourney("JOURNEY_ARRIVED", journey);
-      journeyTransitionsTotal.inc({ transition: "arrived" });
-      app.auditRequest(request, {
-        eventType: "JOURNEY_ARRIVED",
-        targetType: "JOURNEY",
-        targetId: journey.id,
-        groupId: journey.groupId,
-      });
-    }
+    if (changed) journeyTransitionsTotal.inc({ transition: "arrived" });
     return journey;
   });
 
@@ -141,17 +107,10 @@ export async function journeysRoutes(
       app.db,
       request.auth.userId,
       journeyIdOf(request),
+      new Date(),
+      actionOptions(request),
     );
-    if (changed) {
-      publishJourney("JOURNEY_CANCELLED", journey);
-      journeyTransitionsTotal.inc({ transition: "cancelled" });
-      app.auditRequest(request, {
-        eventType: "JOURNEY_CANCELLED",
-        targetType: "JOURNEY",
-        targetId: journey.id,
-        groupId: journey.groupId,
-      });
-    }
+    if (changed) journeyTransitionsTotal.inc({ transition: "cancelled" });
     return journey;
   });
 
@@ -171,22 +130,8 @@ export async function journeysRoutes(
       app.db,
       request.auth.userId,
       journeyId,
+      actionOptions(request),
     );
-    if (created) {
-      const journey = await getJourney(app.db, request.auth.userId, journeyId);
-      publish("JOURNEY_LOCATION_UPDATED", {
-        id: journeyId,
-        groupId: journey.groupId,
-        userId: request.auth.userId,
-      });
-      app.auditRequest(request, {
-        eventType: "LIVE_LOCATION_STARTED",
-        targetType: "LIVE_LOCATION_SESSION",
-        targetId: session.sessionId,
-        groupId: journey.groupId,
-        metadata: { resource: "journey" },
-      });
-    }
     return reply.status(created ? 201 : 200).send(session);
   });
 
@@ -198,16 +143,12 @@ export async function journeysRoutes(
       request.auth.userId,
       journeyId,
       input,
+      new Date(),
+      actionOptions(request),
     );
     if (result.replayed) {
       reply.header("Idempotent-Replayed", "true");
     } else {
-      const journey = await getJourney(app.db, request.auth.userId, journeyId);
-      publish("JOURNEY_LOCATION_UPDATED", {
-        id: journeyId,
-        groupId: journey.groupId,
-        userId: request.auth.userId,
-      });
       // Contagem apenas: nenhuma coordenada vira métrica.
       liveLocationUpdatesTotal.inc({ resource: "journey" });
     }
@@ -218,26 +159,12 @@ export async function journeysRoutes(
 
   app.post("/journeys/:journeyId/live-location/stop", async (request) => {
     const journeyId = journeyIdOf(request);
-    const { state, changed } = await stopJourneyLiveLocation(
+    const { state } = await stopJourneyLiveLocation(
       app.db,
       request.auth.userId,
       journeyId,
+      actionOptions(request),
     );
-    if (changed && state.sessionId) {
-      const journey = await getJourney(app.db, request.auth.userId, journeyId);
-      publish("JOURNEY_LOCATION_UPDATED", {
-        id: journeyId,
-        groupId: journey.groupId,
-        userId: request.auth.userId,
-      });
-      app.auditRequest(request, {
-        eventType: "LIVE_LOCATION_STOPPED",
-        targetType: "LIVE_LOCATION_SESSION",
-        targetId: state.sessionId,
-        groupId: journey.groupId,
-        metadata: { resource: "journey", source: "manual" },
-      });
-    }
     return state;
   });
 

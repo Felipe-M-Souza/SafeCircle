@@ -5,6 +5,7 @@ import {
   users,
   type AcknowledgementType,
 } from "../../infrastructure/database/schema.js";
+import { enqueueRealtime, type DomainActionOptions } from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { loadAccessibleAlert } from "./alert-access.js";
 
@@ -100,6 +101,7 @@ export async function setAcknowledgement(
   userId: string,
   alertId: string,
   type: AcknowledgementType,
+  options: DomainActionOptions = {},
 ): Promise<SetAcknowledgementResult> {
   const alert = await loadAccessibleAlert(db, userId, alertId);
   if (alert.createdByUserId === userId) {
@@ -111,7 +113,7 @@ export async function setAcknowledgement(
 
   for (let attempt = 0; ; attempt += 1) {
     try {
-      const changed = await upsert(db, userId, alertId, type);
+      const changed = await upsert(db, userId, alertId, type, alert.groupId, options);
       return {
         acknowledgement: await loadView(db, alertId, userId),
         changed,
@@ -132,6 +134,8 @@ async function upsert(
   userId: string,
   alertId: string,
   type: AcknowledgementType,
+  groupId: string,
+  options: DomainActionOptions,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -143,8 +147,19 @@ async function upsert(
       .limit(1)
       .for("update");
 
+    // Phase 10: mudança e evento realtime no MESMO COMMIT.
+    const enqueue = () =>
+      enqueueRealtime(tx, "REALTIME_ALERT_ACKNOWLEDGEMENT_CHANGED", {
+        aggregateType: "ALERT",
+        aggregateId: alertId,
+        groupId,
+        requestId: options.requestId ?? null,
+        payload: { alertId, groupId, userId },
+      });
+
     if (!existing) {
       await tx.insert(alertAcknowledgements).values({ alertId, userId, type });
+      await enqueue();
       return true;
     }
     // Auto-SEEN nunca rebaixa um estado já declarado.
@@ -158,6 +173,7 @@ async function upsert(
       .update(alertAcknowledgements)
       .set({ type, updatedAt: new Date() })
       .where(eq(alertAcknowledgements.id, existing.id));
+    await enqueue();
     return true;
   });
 }

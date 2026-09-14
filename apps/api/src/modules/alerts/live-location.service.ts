@@ -7,6 +7,12 @@ import {
   emergencyAlerts,
   type LiveLocationSessionStatus,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueLiveLocationStartedEffects,
+  enqueueLiveLocationStoppedEffects,
+  enqueueLiveLocationUpdatedEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { loadAccessibleAlert, requireActiveAlert, requireCreator } from "./alert-access.js";
 import type { LiveLocationUpdateInput } from "./alerts.schemas.js";
@@ -165,6 +171,7 @@ export async function startLiveLocation(
   db: Database,
   userId: string,
   alertId: string,
+  options: DomainActionOptions = {},
 ): Promise<{ session: LiveLocationSessionView; created: boolean }> {
   const alert = await loadAccessibleAlert(db, userId, alertId);
   requireCreator(alert, userId);
@@ -175,13 +182,25 @@ export async function startLiveLocation(
     return { session: toSessionView(existing), created: false };
   }
   try {
-    const [created] = await db
-      .insert(alertLocationSessions)
-      .values({ alertId, userId, status: "ACTIVE" })
-      .returning(sessionSelection);
-    if (!created) {
-      throw new Error("Falha ao iniciar localização ao vivo.");
-    }
+    // Phase 10: sessão e efeitos no MESMO COMMIT.
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(alertLocationSessions)
+        .values({ alertId, userId, status: "ACTIVE" })
+        .returning(sessionSelection);
+      if (!row) {
+        throw new Error("Falha ao iniciar localização ao vivo.");
+      }
+      await enqueueLiveLocationStartedEffects(tx, {
+        resource: "alert",
+        resourceId: alertId,
+        groupId: alert.groupId,
+        sessionId: row.id,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
+      return row;
+    });
     return { session: toSessionView(created), created: true };
   } catch (error) {
     // Dois starts concorrentes: o índice único parcial garante uma sessão ACTIVE.
@@ -207,6 +226,7 @@ export async function sendLiveLocationUpdate(
   alertId: string,
   input: LiveLocationUpdateInput,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<SendLiveLocationResult> {
   const alert = await loadAccessibleAlert(db, userId, alertId);
   requireCreator(alert, userId);
@@ -256,24 +276,40 @@ export async function sendLiveLocationUpdate(
     throw errors.locationUpdateTooFrequent();
   }
 
-  const [inserted] = await db
-    .insert(alertLocationUpdates)
-    .values({
-      sessionId: session.id,
-      alertId,
-      clientUpdateId: input.clientUpdateId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracy: input.accuracy ?? null,
-      altitude: input.altitude ?? null,
-      heading: input.heading ?? null,
-      speed: input.speed ?? null,
-      capturedAt,
-    })
-    .onConflictDoNothing({
-      target: [alertLocationUpdates.sessionId, alertLocationUpdates.clientUpdateId],
-    })
-    .returning(pointSelection);
+  // Phase 10: ponto e evento realtime no MESMO COMMIT.
+  const inserted = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(alertLocationUpdates)
+      .values({
+        sessionId: session.id,
+        alertId,
+        clientUpdateId: input.clientUpdateId,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        accuracy: input.accuracy ?? null,
+        altitude: input.altitude ?? null,
+        heading: input.heading ?? null,
+        speed: input.speed ?? null,
+        capturedAt,
+      })
+      .onConflictDoNothing({
+        target: [alertLocationUpdates.sessionId, alertLocationUpdates.clientUpdateId],
+      })
+      .returning(pointSelection);
+
+    // Retry idempotente (row ausente) não republica: o evento já foi enfileirado.
+    if (row) {
+      await enqueueLiveLocationUpdatedEffects(tx, {
+        resource: "alert",
+        resourceId: alertId,
+        groupId: alert.groupId,
+        sessionId: session.id,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
+    }
+    return row;
+  });
 
   if (inserted) {
     return { sessionId: session.id, point: toPointView(inserted), replayed: false };
@@ -290,18 +326,36 @@ export async function stopLiveLocation(
   db: Database,
   userId: string,
   alertId: string,
+  options: DomainActionOptions = {},
 ): Promise<{ state: LiveLocationStateView; changed: boolean }> {
   const alert = await loadAccessibleAlert(db, userId, alertId);
   requireCreator(alert, userId);
 
   const now = new Date();
-  const stopped = await db
-    .update(alertLocationSessions)
-    .set({ status: "STOPPED", stoppedAt: now, updatedAt: now })
-    .where(
-      and(eq(alertLocationSessions.alertId, alertId), eq(alertLocationSessions.status, "ACTIVE")),
-    )
-    .returning({ id: alertLocationSessions.id });
+  // Phase 10: parada e efeitos no MESMO COMMIT.
+  const stopped = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(alertLocationSessions)
+      .set({ status: "STOPPED", stoppedAt: now, updatedAt: now })
+      .where(
+        and(eq(alertLocationSessions.alertId, alertId), eq(alertLocationSessions.status, "ACTIVE")),
+      )
+      .returning({ id: alertLocationSessions.id });
+
+    const sessionId = rows[0]?.id;
+    if (sessionId) {
+      await enqueueLiveLocationStoppedEffects(tx, {
+        resource: "alert",
+        resourceId: alertId,
+        groupId: alert.groupId,
+        sessionId,
+        actorUserId: userId,
+        source: "manual",
+        requestId: options.requestId ?? null,
+      });
+    }
+    return rows;
+  });
 
   return { state: await buildState(db, alertId), changed: stopped.length > 0 };
 }

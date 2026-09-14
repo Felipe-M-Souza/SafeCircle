@@ -6,6 +6,7 @@ import {
   trustedGroups,
   users,
 } from "../../infrastructure/database/schema.js";
+import { enqueueRealtime, type DomainActionOptions } from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { requireGroupRole } from "./authorization.js";
 
@@ -232,6 +233,7 @@ export async function acceptInvitation(
   db: Database,
   userId: string,
   invitationId: string,
+  options: DomainActionOptions = {},
 ): Promise<{ groupId: string }> {
   const email = await getUserEmail(db, userId);
 
@@ -283,6 +285,16 @@ export async function acceptInvitation(
       .onConflictDoNothing({
         target: [groupMemberships.groupId, groupMemberships.userId],
       });
+
+    // Phase 10: o aviso de ressincronização entra no MESMO COMMIT.
+    await enqueueRealtime(tx, "REALTIME_GROUP_MEMBERSHIP_CHANGED", {
+      aggregateType: "GROUP",
+      aggregateId: invitation.groupId,
+      groupId: invitation.groupId,
+      requestId: options.requestId ?? null,
+      //  roteia;  compõe o envelope da Phase 5.
+      payload: { groupId: invitation.groupId, targetUserId: userId, userId },
+    });
 
     return { groupId: invitation.groupId };
   });

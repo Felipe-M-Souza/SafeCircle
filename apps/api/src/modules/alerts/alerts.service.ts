@@ -9,6 +9,11 @@ import {
   users,
   type AlertStatus,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueAlertCreatedEffects,
+  enqueueAlertTransitionEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { hashRequestPayload } from "../../shared/idempotency.js";
 import { findMembershipRole, requireMembership } from "../groups/authorization.js";
@@ -226,6 +231,7 @@ export async function createAlert(
   userId: string,
   input: CreateAlertInput,
   idempotencyKey: string,
+  options: DomainActionOptions = {},
 ): Promise<{ alert: AlertView; replayed: boolean }> {
   const location = input.location ?? null;
   const requestHash = hashRequestPayload({ groupId: input.groupId, location });
@@ -279,6 +285,16 @@ export async function createAlert(
             eq(idempotencyKeys.key, idempotencyKey),
           ),
         );
+
+      // Phase 10: os efeitos entram na MESMA transação do alerta. Se o processo
+      // cair logo após o COMMIT, push, realtime e auditoria continuam no banco
+      // e o worker os entrega depois — em vez de sumirem com o processo.
+      await enqueueAlertCreatedEffects(tx, {
+        alertId: alert.id,
+        groupId: input.groupId,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
 
       return alert.id;
     });
@@ -362,6 +378,7 @@ async function closeAlert(
   userId: string,
   alertId: string,
   target: "RESOLVED" | "CANCELLED",
+  options: DomainActionOptions,
 ): Promise<AlertTransitionResult> {
   const [alert] = await db
     .select({
@@ -404,7 +421,20 @@ async function closeAlert(
     if (updated.length === 0) {
       throw errors.invalidAlertTransition();
     }
-    return stopActiveSessionForAlert(tx, alertId, now);
+    const stoppedSessionId = await stopActiveSessionForAlert(tx, alertId, now);
+
+    // Phase 10: realtime e auditoria entram na MESMA transação da transição.
+    // Só quem realmente executou a mudança enfileira os efeitos.
+    await enqueueAlertTransitionEffects(tx, {
+      alertId,
+      groupId: alert.groupId,
+      actorUserId: userId,
+      transition: target,
+      stoppedLiveSessionId: stoppedSessionId,
+      requestId: options.requestId ?? null,
+    });
+
+    return stoppedSessionId;
   });
 
   return { alert: await loadAlertView(db, alertId), stoppedLiveSessionId };
@@ -415,8 +445,9 @@ export function resolveAlert(
   db: Database,
   userId: string,
   alertId: string,
+  options: DomainActionOptions = {},
 ): Promise<AlertTransitionResult> {
-  return closeAlert(db, userId, alertId, "RESOLVED");
+  return closeAlert(db, userId, alertId, "RESOLVED", options);
 }
 
 /** Somente o criador: ACTIVE -> CANCELLED (preenche `cancelledAt`). */
@@ -424,6 +455,7 @@ export function cancelAlert(
   db: Database,
   userId: string,
   alertId: string,
+  options: DomainActionOptions = {},
 ): Promise<AlertTransitionResult> {
-  return closeAlert(db, userId, alertId, "CANCELLED");
+  return closeAlert(db, userId, alertId, "CANCELLED", options);
 }
