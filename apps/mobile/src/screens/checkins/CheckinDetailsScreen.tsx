@@ -3,8 +3,8 @@ import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from "
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type SafetyCheckin } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type SafetyCheckin } from "../../lib/api";
 import { formatTime, secondsUntil } from "../../lib/time";
 import { useNow } from "../../live-location/useLiveLocation";
 import type { RealtimeEvent } from "../../realtime/events";
@@ -45,7 +45,7 @@ export function CheckinDetailsScreen({
       setCheckin(await api.getCheckin(checkinId));
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
     }
   }, [api, checkinId, t.loadError]);
 
@@ -82,7 +82,7 @@ export function CheckinDetailsScreen({
       setFeedback(message);
     } catch (e) {
       await load();
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setBusy(false);
       setConfirmingCancel(false);

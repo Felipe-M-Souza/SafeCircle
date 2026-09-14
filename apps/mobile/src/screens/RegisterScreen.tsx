@@ -1,18 +1,10 @@
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, } from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
-import { strings, translateErrorCode } from "../i18n/pt-BR";
-import { ApiError } from "../lib/api";
+import { strings, translateApiError } from "../i18n/pt-BR";
 import { validateRegister } from "../lib/validation";
 import { colors } from "../theme/colors";
 
@@ -42,9 +34,7 @@ export function RegisterScreen({
     try {
       await signUp(name, email, password);
     } catch (error) {
-      setFormError(
-        error instanceof ApiError ? translateErrorCode(error.code) : strings.common.genericError,
-      );
+      setFormError(translateApiError(error, strings.common.genericError));
     } finally {
       setSubmitting(false);
     }

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { Screen } from "../../components/Screen";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type EmergencyAlert } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type EmergencyAlert } from "../../lib/api";
 import { minutesSince } from "../../lib/time";
 import { isAlertEvent, type RealtimeEvent } from "../../realtime/events";
 import { useRealtime, useRealtimeEvents } from "../../realtime/RealtimeProvider";
@@ -29,7 +29,7 @@ export function ActiveAlertsScreen({ nav }: { nav: Nav }): React.JSX.Element {
     try {
       setAlerts(await api.listAlerts("ACTIVE"));
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
       setAlerts((previous) => previous ?? []);
     }
   }, [api, t.loadError]);

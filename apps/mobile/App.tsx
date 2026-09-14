@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import type { ApiClient } from "./src/lib/api";
 import { LiveLocationLifecycle } from "./src/live-location/LiveLocationLifecycle";
 import { stopAllLiveLocation } from "./src/live-location/LiveLocationController";
@@ -49,15 +50,19 @@ async function beforeSignOut(api: ApiClient): Promise<void> {
 }
 
 export default function App(): React.JSX.Element {
+  // O boundary envolve tudo: uma falha de render em qualquer tela cai na
+  // mensagem segura, com código de suporte, em vez de tela branca (Phase 9).
   return (
-    <AuthProvider beforeSignOut={beforeSignOut}>
-      <NotificationsProvider>
-        <RealtimeProvider>
-          <LiveLocationLifecycle />
-          <StatusBar style="light" />
-          <Root />
-        </RealtimeProvider>
-      </NotificationsProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider beforeSignOut={beforeSignOut}>
+        <NotificationsProvider>
+          <RealtimeProvider>
+            <LiveLocationLifecycle />
+            <StatusBar style="light" />
+            <Root />
+          </RealtimeProvider>
+        </NotificationsProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

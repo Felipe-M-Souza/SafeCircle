@@ -30,11 +30,32 @@ export interface TokenPair {
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
-  constructor(code: string, message: string, status: number) {
+  /** Correlação com os logs do servidor (Phase 9). */
+  readonly requestId?: string;
+  /** Só em falhas internas (500): vira o "código de suporte" na interface. */
+  readonly errorId?: string;
+
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    correlation: { requestId?: string; errorId?: string } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    if (correlation.requestId) this.requestId = correlation.requestId;
+    if (correlation.errorId) this.errorId = correlation.errorId;
+  }
+
+  /**
+   * Código curto que o usuário pode informar ao suporte. Preferimos o
+   * `errorId` (identifica a falha exata); sem ele, o `requestId` já permite
+   * achar a requisição no log.
+   */
+  get supportCode(): string | undefined {
+    return this.errorId ?? this.requestId;
   }
 }
 
@@ -51,7 +72,13 @@ async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const code = (data && data.code) || "INTERNAL_ERROR";
     const message = (data && data.message) || "Erro na requisição.";
-    throw new ApiError(code, message, response.status);
+    // Correlação (Phase 9): aceita só strings curtas — o corpo é entrada externa.
+    const short = (value: unknown): string | undefined =>
+      typeof value === "string" && value.length > 0 && value.length <= 64 ? value : undefined;
+    throw new ApiError(code, message, response.status, {
+      requestId: short(data?.requestId) ?? short(response.headers.get("x-request-id")),
+      errorId: short(data?.errorId),
+    });
   }
 
   return data as T;

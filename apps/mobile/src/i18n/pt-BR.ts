@@ -1,3 +1,5 @@
+import { ApiError } from "../lib/api";
+
 /**
  * Textos de interface em Português do Brasil (pt-BR).
  *
@@ -105,6 +107,13 @@ export const ptBR = {
   },
   realtime: {
     reconnecting: "Reconectando às atualizações em tempo real...",
+  },
+  errorBoundary: {
+    title: "Algo deu errado",
+    body: "Não foi possível exibir esta tela.",
+    retry: "TENTAR NOVAMENTE",
+    // Código curto para o suporte localizar a ocorrência nos logs do servidor.
+    supportCode: (code: string) => `Código de suporte: ${code}`,
   },
   checkins: {
     sectionTitle: "Check-in de segurança",
@@ -456,4 +465,25 @@ export function translateErrorCode(code: string | undefined): string {
     return ptBR.errors[code] as string;
   }
   return ptBR.common.genericError;
+}
+
+/**
+ * Mensagem pt-BR para qualquer erro (Phase 9).
+ *
+ * Erros esperados (validação, autorização, conflito) mostram só a mensagem —
+ * acrescentar um código a eles seria ruído. Falhas **inesperadas** (5xx)
+ * ganham o código de suporte, que é exatamente o `errorId`/`requestId` do log
+ * do servidor: é o que torna um "erro interno" investigável.
+ *
+ * `fallback` cobre o que não veio da API (ex.: falha ao carregar uma lista).
+ */
+export function translateApiError(error: unknown, fallback: string = ptBR.common.genericError) {
+  if (!(error instanceof ApiError)) {
+    return fallback;
+  }
+  const message = translateErrorCode(error.code);
+  const unexpected = error.status >= 500 || error.code === "INTERNAL_ERROR";
+  return unexpected && error.supportCode
+    ? `${message}\n\n${ptBR.errorBoundary.supportCode(error.supportCode)}`
+    : message;
 }

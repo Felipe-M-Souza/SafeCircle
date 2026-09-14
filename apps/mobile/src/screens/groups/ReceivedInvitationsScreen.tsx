@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { Screen } from "../../components/Screen";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type MyInvitation } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type MyInvitation } from "../../lib/api";
 import { colors } from "../../theme/colors";
 import type { Nav } from "../../navigation/types";
 
@@ -19,7 +19,7 @@ export function ReceivedInvitationsScreen({ nav }: { nav: Nav }): React.JSX.Elem
     try {
       setInvitations(await api.listMyInvitations());
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
       setInvitations([]);
     }
   }, [api]);
@@ -35,7 +35,7 @@ export function ReceivedInvitationsScreen({ nav }: { nav: Nav }): React.JSX.Elem
       const { groupId } = await api.acceptInvitation(invitation.id);
       nav.navigate({ name: "groupDetails", groupId });
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
       await load();
     } finally {
       setBusyId(null);
@@ -49,7 +49,7 @@ export function ReceivedInvitationsScreen({ nav }: { nav: Nav }): React.JSX.Elem
       await api.rejectInvitation(invitation.id);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setBusyId(null);
     }

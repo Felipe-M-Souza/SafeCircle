@@ -5,8 +5,8 @@ import { JourneyLiveLocationSection } from "../../components/JourneyLiveLocation
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
 import { getJourneyLiveLocationController } from "../../live-location/LiveLocationController";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type SafeJourney } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type SafeJourney } from "../../lib/api";
 import { formatTime, secondsUntil } from "../../lib/time";
 import { useNow } from "../../live-location/useLiveLocation";
 import { isJourneyEvent, type RealtimeEvent } from "../../realtime/events";
@@ -46,7 +46,7 @@ export function JourneyDetailsScreen({
       setJourney(await api.getJourney(journeyId));
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
     }
   }, [api, journeyId, t.loadError]);
 
@@ -94,7 +94,7 @@ export function JourneyDetailsScreen({
       void getJourneyLiveLocationController(journeyId, api).stop({ notifyBackend: false });
     } catch (e) {
       await load();
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setBusy(false);
       setConfirmingCancel(false);

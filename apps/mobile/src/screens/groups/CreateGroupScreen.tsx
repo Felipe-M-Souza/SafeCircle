@@ -4,8 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
 import { TextField } from "../../components/TextField";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
 import { colors } from "../../theme/colors";
 import type { Nav } from "../../navigation/types";
 
@@ -28,7 +27,7 @@ export function CreateGroupScreen({ nav }: { nav: Nav }): React.JSX.Element {
       // Substitui esta tela pelos detalhes do grupo recém-criado.
       nav.replace({ name: "groupDetails", groupId: group.id });
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setSubmitting(false);
     }

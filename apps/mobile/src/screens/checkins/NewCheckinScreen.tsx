@@ -4,7 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
 import { TextField } from "../../components/TextField";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
+import { strings, translateApiError } from "../../i18n/pt-BR";
 import { ApiError, type GroupSummary } from "../../lib/api";
 import { generateIdempotencyKey } from "../../lib/idempotency";
 import { formatTime } from "../../lib/time";
@@ -42,7 +42,7 @@ export function NewCheckinScreen({ nav }: { nav: Nav }): React.JSX.Element {
       setGroups(list);
       setGroupId((previous) => previous ?? list[0]?.id ?? null);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.groups.loadError);
+      setError(translateApiError(e, strings.groups.loadError));
       setGroups([]);
     }
   }, [api]);
@@ -75,7 +75,7 @@ export function NewCheckinScreen({ nav }: { nav: Nav }): React.JSX.Element {
         // Resposta definitiva: a próxima tentativa é uma nova intenção.
         setIdempotencyKey(generateIdempotencyKey());
       }
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setSubmitting(false);
     }
