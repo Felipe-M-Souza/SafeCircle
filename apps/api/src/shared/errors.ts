@@ -14,6 +14,8 @@ export type ErrorCode =
   | "SESSION_REVOKED"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
+  // Rota inexistente (Phase 9): mesmo formato dos demais erros.
+  | "NOT_FOUND"
   // Phase 2 — Grupos de Confiança
   | "GROUP_NOT_FOUND"
   | "GROUP_NAME_INVALID"

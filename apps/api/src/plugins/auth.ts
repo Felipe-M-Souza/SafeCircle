@@ -50,6 +50,9 @@ export const authPlugin = fp(
       try {
         await request.jwtVerify();
         request.auth = { userId: request.user.sub, sessionId: request.user.sid };
+        // Correlação (Phase 9): a partir daqui todo log da requisição carrega o
+        // usuário — em um único lugar, sem repetir em cada rota.
+        request.log = request.log.child({ userId: request.auth.userId });
       } catch {
         throw errors.unauthorized();
       }
