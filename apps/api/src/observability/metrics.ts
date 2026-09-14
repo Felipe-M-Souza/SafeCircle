@@ -333,6 +333,75 @@ export const auditFailuresTotal = register(
 );
 
 // ------------------------------------------------------------------
+// Outbox transacional (Phase 10)
+// ------------------------------------------------------------------
+
+export const outboxEnqueuedTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}outbox_enqueued_total`,
+    help: "Eventos inseridos na outbox, por tipo.",
+    labelNames: ["event_type"] as const,
+  }),
+);
+
+export const outboxProcessedTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}outbox_processed_total`,
+    help: "Eventos da outbox concluídos, por tipo e resultado.",
+    labelNames: ["event_type", "result"] as const,
+  }),
+);
+
+export const outboxRetriesTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}outbox_retries_total`,
+    help: "Reprocessamentos agendados após falha transitória, por tipo.",
+    labelNames: ["event_type"] as const,
+  }),
+);
+
+export const outboxDeadTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}outbox_dead_total`,
+    help: "Eventos da outbox que terminaram em dead-letter, por tipo.",
+    labelNames: ["event_type"] as const,
+  }),
+);
+
+export const outboxExpiredTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}outbox_expired_total`,
+    help: "Eventos da outbox descartados por expiração, por tipo.",
+    labelNames: ["event_type"] as const,
+  }),
+);
+
+export const outboxProcessingDuration = register(
+  new Histogram({
+    name: `${METRICS_PREFIX}outbox_processing_duration_seconds`,
+    help: "Duração do processamento de um evento da outbox em segundos.",
+    labelNames: ["event_type"] as const,
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  }),
+);
+
+/** Sinal operacional crítico: fila parando de escoar. */
+export const outboxBacklog = register(
+  new Gauge({
+    name: `${METRICS_PREFIX}outbox_backlog`,
+    help: "Eventos da outbox por estado não terminal.",
+    labelNames: ["status"] as const,
+  }),
+);
+
+export const outboxOldestPendingAge = register(
+  new Gauge({
+    name: `${METRICS_PREFIX}outbox_oldest_pending_age_seconds`,
+    help: "Idade, em segundos, do evento PENDING mais antigo.",
+  }),
+);
+
+// ------------------------------------------------------------------
 // Utilitários
 // ------------------------------------------------------------------
 

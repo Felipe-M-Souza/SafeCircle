@@ -21,6 +21,7 @@ import { checkinsRoutes } from "./modules/checkins/checkins.routes.js";
 import { checkinSchedulerPlugin } from "./plugins/checkin-scheduler.js";
 import { journeysRoutes } from "./modules/journeys/journeys.routes.js";
 import { journeySchedulerPlugin } from "./plugins/journey-scheduler.js";
+import { outboxPlugin } from "./plugins/outbox.js";
 import { REDACTED_LOG_PATHS, resolveRequestId } from "./observability/request-context.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
@@ -47,6 +48,11 @@ export interface BuildAppOptions {
    * Padrão: ligado, exceto em NODE_ENV=test (os testes chamam runOnce()).
    */
   journeySchedulerAutoStart?: boolean;
+  /**
+   * Inicia o worker da outbox com o servidor (Phase 10).
+   * Padrão: OUTBOX_ENABLED, exceto em NODE_ENV=test (os testes chamam runOnce()).
+   */
+  outboxWorkerAutoStart?: boolean;
   /** Sobrescreve METRICS_ENABLED (Phase 9; usado pelos testes). */
   metricsEnabled?: boolean;
   /** Sobrescreve METRICS_TOKEN (Phase 9; usado pelos testes). */
@@ -157,6 +163,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(journeysRoutes, { appConfig: config });
     await app.register(journeySchedulerPlugin, {
       autoStart: options.journeySchedulerAutoStart ?? config.nodeEnv !== "test",
+    });
+    await app.register(outboxPlugin, {
+      autoStart:
+        options.outboxWorkerAutoStart ?? (config.outboxEnabled && config.nodeEnv !== "test"),
+      pollIntervalMs: config.outboxPollIntervalMs,
+      batchSize: config.outboxBatchSize,
+      concurrency: config.outboxConcurrency,
+      leaseMs: config.outboxLeaseMs,
     });
   } else {
     app.log.warn(
