@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
 import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
+import { checkinTransitionsTotal } from "../../observability/metrics.js";
 import { checkinRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
 import { parseIdempotencyKey } from "../../shared/idempotency.js";
@@ -72,6 +73,13 @@ export async function checkinsRoutes(
         reply.header("Idempotent-Replayed", "true");
       } else {
         publish("CHECKIN_CREATED", checkin);
+        checkinTransitionsTotal.inc({ transition: "created" });
+        app.auditRequest(request, {
+          eventType: "CHECKIN_CREATED",
+          targetType: "CHECKIN",
+          targetId: checkin.id,
+          groupId: checkin.groupId,
+        });
       }
       return reply.status(201).send(checkin);
     },
@@ -96,7 +104,16 @@ export async function checkinsRoutes(
       errors.checkinNotFound,
     );
     const { checkin, changed } = await confirmCheckinSafe(app.db, request.auth.userId, checkinId);
-    if (changed) publish("CHECKIN_SAFE", checkin);
+    if (changed) {
+      publish("CHECKIN_SAFE", checkin);
+      checkinTransitionsTotal.inc({ transition: "safe" });
+      app.auditRequest(request, {
+        eventType: "CHECKIN_MARKED_SAFE",
+        targetType: "CHECKIN",
+        targetId: checkin.id,
+        groupId: checkin.groupId,
+      });
+    }
     return checkin;
   });
 
@@ -106,7 +123,16 @@ export async function checkinsRoutes(
       errors.checkinNotFound,
     );
     const { checkin, changed } = await cancelCheckin(app.db, request.auth.userId, checkinId);
-    if (changed) publish("CHECKIN_CANCELLED", checkin);
+    if (changed) {
+      publish("CHECKIN_CANCELLED", checkin);
+      checkinTransitionsTotal.inc({ transition: "cancelled" });
+      app.auditRequest(request, {
+        eventType: "CHECKIN_CANCELLED",
+        targetType: "CHECKIN",
+        targetId: checkin.id,
+        groupId: checkin.groupId,
+      });
+    }
     return checkin;
   });
 

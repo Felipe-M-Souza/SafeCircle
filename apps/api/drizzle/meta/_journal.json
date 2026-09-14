@@ -57,6 +57,13 @@
       "when": 1789238270310,
       "tag": "0007_safe_journeys",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789385011898,
+      "tag": "0008_audit_events",
+      "breakpoints": true
     }
   ]
 }

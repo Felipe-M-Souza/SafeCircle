@@ -48,6 +48,12 @@ export async function groupsRoutes(
   app.post("/groups", async (request, reply) => {
     const input = createGroupSchema.parse(request.body);
     const group = await createGroup(app.db, request.auth.userId, input.name);
+    app.auditRequest(request, {
+      eventType: "GROUP_CREATED",
+      targetType: "GROUP",
+      targetId: group.id,
+      groupId: group.id,
+    });
     return reply.status(201).send(group);
   });
 
@@ -96,6 +102,13 @@ export async function groupsRoutes(
       errors.groupNotFound,
     );
     await leaveGroup(app.db, request.auth.userId, groupId);
+    app.auditRequest(request, {
+      eventType: "GROUP_MEMBER_REMOVED",
+      targetType: "GROUP_MEMBERSHIP",
+      targetId: request.auth.userId,
+      groupId,
+      metadata: { source: "self" },
+    });
     notifyMembershipChanged(request.auth.userId, groupId);
     return reply.status(204).send();
   });
@@ -105,6 +118,13 @@ export async function groupsRoutes(
     const groupId = parseUuid(params.groupId, errors.groupNotFound);
     const targetUserId = parseUuid(params.userId, errors.memberNotFound);
     await removeMember(app.db, request.auth.userId, groupId, targetUserId);
+    app.auditRequest(request, {
+      eventType: "GROUP_MEMBER_REMOVED",
+      targetType: "GROUP_MEMBERSHIP",
+      targetId: targetUserId,
+      groupId,
+      metadata: { source: "admin" },
+    });
     notifyMembershipChanged(targetUserId, groupId);
     return reply.status(204).send();
   });
@@ -114,7 +134,21 @@ export async function groupsRoutes(
     const groupId = parseUuid(params.groupId, errors.groupNotFound);
     const targetUserId = parseUuid(params.userId, errors.memberNotFound);
     const input = changeRoleSchema.parse(request.body);
-    return changeMemberRole(app.db, request.auth.userId, groupId, targetUserId, input.role);
+    const member = await changeMemberRole(
+      app.db,
+      request.auth.userId,
+      groupId,
+      targetUserId,
+      input.role,
+    );
+    app.auditRequest(request, {
+      eventType: "GROUP_MEMBER_ROLE_CHANGED",
+      targetType: "GROUP_MEMBERSHIP",
+      targetId: targetUserId,
+      groupId,
+      metadata: { role: input.role },
+    });
+    return member;
   });
 
   // --- Convites do grupo ---

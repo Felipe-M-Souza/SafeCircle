@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { createRealtimeEvent } from "../infrastructure/realtime/events.js";
 import { notifyCheckinOverdue } from "../modules/checkins/checkin-notifications.service.js";
 import { CheckinScheduler } from "../modules/checkins/checkin-scheduler.js";
+import { checkinTransitionsTotal } from "../observability/metrics.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -28,6 +29,16 @@ export const checkinSchedulerPlugin = fp(
       log: app.log,
       intervalMs: options.intervalMs,
       onOverdue: (checkin) => {
+        checkinTransitionsTotal.inc({ transition: "overdue" });
+        // Ator nulo: a transição é do sistema, não de uma pessoa.
+        app.audit({
+          eventType: "CHECKIN_OVERDUE",
+          actorUserId: null,
+          targetType: "CHECKIN",
+          targetId: checkin.id,
+          groupId: checkin.groupId,
+          metadata: { source: "scheduler" },
+        });
         app.background.run("realtime:CHECKIN_OVERDUE", () =>
           app.realtime.publishToGroup(
             checkin.groupId,
@@ -58,6 +69,11 @@ export const checkinSchedulerPlugin = fp(
   },
   {
     name: "safecircle-checkin-scheduler",
-    dependencies: ["safecircle-database", "safecircle-realtime", "safecircle-background-tasks"],
+    dependencies: [
+      "safecircle-database",
+      "safecircle-realtime",
+      "safecircle-background-tasks",
+      "safecircle-audit",
+    ],
   },
 );

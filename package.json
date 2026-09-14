@@ -23,7 +23,8 @@
     "db:check": "pnpm --filter @safecircle/api run db:check",
     "location:cleanup": "pnpm --filter @safecircle/api run location:cleanup",
     "checkin:cleanup": "pnpm --filter @safecircle/api run checkin:cleanup",
-    "journey:cleanup": "pnpm --filter @safecircle/api run journey:cleanup"
+    "journey:cleanup": "pnpm --filter @safecircle/api run journey:cleanup",
+    "audit:cleanup": "pnpm --filter @safecircle/api run audit:cleanup"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
