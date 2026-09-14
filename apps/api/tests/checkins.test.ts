@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
@@ -60,6 +61,8 @@ describe("Check-in de Segurança", () => {
     groupId = await createGroup(app, owner, "Família");
     await addMember(app, owner, groupId, member);
     await createGroup(app, outsider, "Outro");
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   describe("POST /checkins", () => {
@@ -326,7 +329,7 @@ describe("Check-in de Segurança", () => {
     it("OVERDUE -> SAFE é permitido; OVERDUE -> CANCELLED não", async () => {
       await expireCheckin(cleaner.sql, checkinId);
       expect(await app.checkinScheduler.runOnce()).toBe(1);
-      await app.background.flush();
+      await drainOutbox(app);
       expect((await getCheckin(app, owner, checkinId)).json().status).toBe("OVERDUE");
 
       const cancel = await checkinAction(app, owner, checkinId, "cancel");
@@ -364,23 +367,26 @@ describe("Check-in de Segurança", () => {
       const dueAt = dueIn(30);
       const created = await postCheckin(app, owner, { groupId, dueAt }, key);
       const checkinId = created.json().id as string;
+      await drainOutbox(app);
       const event = await memberClient.waitForEvent(isType("CHECKIN_CREATED"));
       expect(event.data).toEqual({ checkinId, groupId, userId: owner.userId });
 
       // Replay idempotente não publica de novo.
       await postCheckin(app, owner, { groupId, dueAt }, key);
-      await app.background.flush();
+      await drainOutbox(app);
       expect(memberClient.events.filter(isType("CHECKIN_CREATED"))).toHaveLength(1);
 
       await checkinAction(app, owner, checkinId, "safe");
+      await drainOutbox(app);
       const safe = await memberClient.waitForEvent(isType("CHECKIN_SAFE"));
       expect(safe.data).toEqual({ checkinId, groupId, userId: owner.userId });
       await checkinAction(app, owner, checkinId, "safe");
-      await app.background.flush();
+      await drainOutbox(app);
       expect(memberClient.events.filter(isType("CHECKIN_SAFE"))).toHaveLength(1);
 
       const second = await createCheckin(app, owner, groupId);
       await checkinAction(app, owner, second.id, "cancel");
+      await drainOutbox(app);
       const cancelled = await memberClient.waitForEvent(isType("CHECKIN_CANCELLED"));
       expect((cancelled.data as { checkinId: string }).checkinId).toBe(second.id);
 
@@ -388,6 +394,7 @@ describe("Check-in de Segurança", () => {
       for (const forbidden of ["email", "latitude", "longitude", "PushToken", "Felipe"]) {
         expect(raw).not.toContain(forbidden);
       }
+      await drainOutbox(app);
       await outsiderClient.expectNoEvent(() => true);
       expect(outsiderClient.events).toHaveLength(0);
     });

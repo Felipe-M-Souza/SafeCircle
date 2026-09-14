@@ -15,6 +15,8 @@ export interface TestAppOptions {
   exposeTestErrorRoute?: boolean;
   /** Habilita o logger real (testes de redaction capturam a saída). */
   logger?: boolean;
+  /** Phase 10: inicia o worker da outbox (padrão: desligado; use runOnce()). */
+  outboxWorkerAutoStart?: boolean;
 }
 
 /**
@@ -29,6 +31,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<Fasti
     metricsEnabled: options.metricsEnabled,
     metricsToken: options.metricsToken,
     exposeTestErrorRoute: options.exposeTestErrorRoute,
+    // Os testes controlam a entrega via app.outboxWorker.runOnce().
+    outboxWorkerAutoStart: options.outboxWorkerAutoStart ?? false,
     // Os testes controlam o vencimento via app.checkinScheduler.runOnce().
     checkinSchedulerAutoStart: false,
     // Os testes controlam o vencimento via app.journeyScheduler.runOnce().

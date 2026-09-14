@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner, getTestDatabaseUrl } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { createGroup } from "./helpers/groups.js";
@@ -71,7 +72,7 @@ describe("Redaction de logs", () => {
       url: "/auth/login",
       payload: { email, password: "senhaErrada12345" },
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(loggedText()).not.toContain(PASSWORD);
     expect(loggedText()).not.toContain("senhaErrada12345");
@@ -86,7 +87,7 @@ describe("Redaction de logs", () => {
       url: "/checkins",
       headers: { authorization: "Bearer token-invalido-de-teste" },
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     const text = loggedText();
     expect(text).not.toContain(user.accessToken);
@@ -104,7 +105,7 @@ describe("Redaction de logs", () => {
       payload: { token, platform: "ANDROID", deviceId: randomUUID() },
     });
     expect(res.statusCode).toBe(201);
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(loggedText()).not.toContain(token);
   });
@@ -125,7 +126,7 @@ describe("Redaction de logs", () => {
       },
     });
     expect(res.statusCode).toBe(201);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const text = loggedText();
     expect(text).not.toContain("23.987654321");
@@ -137,7 +138,7 @@ describe("Redaction de logs", () => {
   it("o log de conclusão traz correlação sem dados sensíveis", async () => {
     const user = await registerUser(app);
     await app.inject({ method: "GET", url: "/checkins", headers: authHeaders(user) });
-    await app.background.flush();
+    await drainOutbox(app);
 
     const completed = captured
       .map((line) => {

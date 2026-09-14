@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
@@ -66,6 +67,8 @@ describe("Acknowledgements de alerta", () => {
     await addMember(app, creator, groupId, joao);
     await createGroup(app, outsider, "Outro");
     alertId = (await createAlert(app, creator, groupId, SYNTHETIC_LOCATION)).id;
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("membro cria e atualiza o próprio acknowledgement (uma linha por usuário)", async () => {
@@ -208,13 +211,14 @@ describe("Acknowledgements de alerta", () => {
     const client = await connectRealtime(wsUrl, creator.accessToken);
     try {
       await put(maria, alertId, "GOING_TO_HELP");
+      await drainOutbox(app);
       const event = await client.waitForEvent((e) => e.type === "ALERT_ACKNOWLEDGEMENT_CHANGED");
       expect(event.data).toEqual({ alertId, groupId, userId: maria.userId });
 
       // SEEN não rebaixa e, sem mudança, não publica; repetir o mesmo tipo tampouco.
       await put(maria, alertId, "SEEN");
       await put(maria, alertId, "GOING_TO_HELP");
-      await app.background.flush();
+      await drainOutbox(app);
       await client.expectNoEvent(
         (e) => e.type === "ALERT_ACKNOWLEDGEMENT_CHANGED" && e.eventId !== event.eventId,
       );

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
@@ -64,6 +65,8 @@ describe("Trajeto Seguro", () => {
     groupId = await createGroup(app, owner, "Família");
     await addMember(app, owner, groupId, member);
     await createGroup(app, outsider, "Outro");
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   describe("POST /journeys", () => {
@@ -345,7 +348,7 @@ describe("Trajeto Seguro", () => {
         UPDATE safe_journeys SET expected_arrival_at = now() - interval '1 minute' WHERE id = ${journeyId}
       `;
       expect(await app.journeyScheduler.runOnce()).toBe(1);
-      await app.background.flush();
+      await drainOutbox(app);
       expect((await getJourney(app, owner, journeyId)).json().status).toBe("OVERDUE");
 
       const arrive = await journeyAction(app, owner, journeyId, "arrive");
@@ -360,7 +363,7 @@ describe("Trajeto Seguro", () => {
         UPDATE safe_journeys SET expected_arrival_at = now() - interval '1 minute' WHERE id = ${second}
       `;
       await app.journeyScheduler.runOnce();
-      await app.background.flush();
+      await drainOutbox(app);
       const cancel = await journeyAction(app, owner, second, "cancel");
       expect(cancel.statusCode).toBe(200);
       expect(cancel.json().status).toBe("CANCELLED");
@@ -395,19 +398,22 @@ describe("Trajeto Seguro", () => {
         key,
       );
       const journeyId = created.json().id as string;
+      await drainOutbox(app);
       const event = await memberClient.waitForEvent(isType("JOURNEY_CREATED"));
       expect(event.data).toEqual({ journeyId, groupId, userId: owner.userId });
 
       await postJourney(app, owner, { groupId, expectedArrivalAt: arriveIn(30) }, key);
-      await app.background.flush();
+      await drainOutbox(app);
       expect(memberClient.events.filter(isType("JOURNEY_CREATED"))).toHaveLength(1);
 
       await journeyAction(app, owner, journeyId, "arrive");
+      await drainOutbox(app);
       const arrived = await memberClient.waitForEvent(isType("JOURNEY_ARRIVED"));
       expect(arrived.data).toEqual({ journeyId, groupId, userId: owner.userId });
 
       const second = await createJourney(app, owner, groupId);
       await journeyAction(app, owner, second.id, "cancel");
+      await drainOutbox(app);
       const cancelled = await memberClient.waitForEvent(isType("JOURNEY_CANCELLED"));
       expect((cancelled.data as { journeyId: string }).journeyId).toBe(second.id);
 
@@ -415,6 +421,7 @@ describe("Trajeto Seguro", () => {
       for (const forbidden of ["email", "latitude", "longitude", "PushToken", "Felipe"]) {
         expect(raw).not.toContain(forbidden);
       }
+      await drainOutbox(app);
       await outsiderClient.expectNoEvent(() => true);
       expect(outsiderClient.events).toHaveLength(0);
     });
@@ -447,6 +454,7 @@ describe("Trajeto Seguro", () => {
       const first = await sendJourneyLocation(app, owner, journey.id, point);
       expect(first.statusCode).toBe(201);
       // Membro vê apenas evento (sem coordenadas) e busca o estado via REST.
+      await drainOutbox(app);
       const event = await memberClient.waitForEvent(isType("JOURNEY_LOCATION_UPDATED"));
       expect(event.data).toEqual({ journeyId: journey.id, groupId, userId: owner.userId });
       expect(JSON.stringify(memberClient.events)).not.toContain("latitude");
@@ -491,7 +499,7 @@ describe("Trajeto Seguro", () => {
         UPDATE safe_journeys SET expected_arrival_at = now() - interval '1 minute' WHERE id = ${journey.id}
       `;
       await app.journeyScheduler.runOnce();
-      await app.background.flush();
+      await drainOutbox(app);
       const whileOverdue = await sendJourneyLocation(
         app,
         owner,

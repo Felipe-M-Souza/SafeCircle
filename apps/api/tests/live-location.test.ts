@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -123,6 +124,8 @@ describe("Localização ao vivo", () => {
     await addMember(app, creator, groupId, member);
     await createGroup(app, outsider, "Outro");
     alertId = (await createAlert(app, creator, groupId, SYNTHETIC_LOCATION)).id;
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   describe("start", () => {
@@ -426,20 +429,23 @@ describe("Localização ao vivo", () => {
 
       const started = await start(creator, alertId);
       const sessionId = started.json().sessionId as string;
+      await drainOutbox(app);
       const startedEvent = await memberClient.waitForEvent(isType("ALERT_LIVE_LOCATION_STARTED"));
       expect(startedEvent.data).toEqual({ alertId, groupId, sessionId });
 
       const point = syntheticPoint();
       await send(creator, alertId, point);
+      await drainOutbox(app);
       const updatedEvent = await memberClient.waitForEvent(isType("ALERT_LIVE_LOCATION_UPDATED"));
       expect(updatedEvent.data).toEqual({ alertId, groupId, sessionId });
 
       // Retry idempotente não publica segundo evento.
       await send(creator, alertId, point);
-      await app.background.flush();
+      await drainOutbox(app);
       expect(memberClient.events.filter(isType("ALERT_LIVE_LOCATION_UPDATED"))).toHaveLength(1);
 
       await stop(creator, alertId);
+      await drainOutbox(app);
       const stoppedEvent = await memberClient.waitForEvent(isType("ALERT_LIVE_LOCATION_STOPPED"));
       expect(stoppedEvent.data).toEqual({ alertId, groupId, sessionId });
 
@@ -450,6 +456,7 @@ describe("Localização ao vivo", () => {
       // Coordenadas sintéticas (-23/-46) como valores; UUIDs podem conter "-23"/"-46" como substring.
       expect(raw).not.toMatch(/-23\b/);
       expect(raw).not.toMatch(/-46\b/);
+      await drainOutbox(app);
       await outsiderClient.expectNoEvent(() => true);
       expect(outsiderClient.events).toHaveLength(0);
     });
@@ -463,6 +470,7 @@ describe("Localização ao vivo", () => {
         url: `/alerts/${alertId}/resolve`,
         headers: authHeaders(creator),
       });
+      await drainOutbox(app);
       await client.waitForEvent(isType("ALERT_RESOLVED"));
       await client.waitForEvent(isType("ALERT_LIVE_LOCATION_STOPPED"));
     });
@@ -476,7 +484,7 @@ describe("Localização ao vivo", () => {
       try {
         const res = await send(creator, alertId, syntheticPoint());
         expect(res.statusCode).toBe(201);
-        await app.background.flush();
+        await drainOutbox(app);
         expect(await countPoints(alertId)).toBe(1);
       } finally {
         app.realtimeHub.send = original;
