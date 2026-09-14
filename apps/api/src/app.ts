@@ -1,13 +1,16 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 import fastifyCors from "@fastify/cors";
 import { loadEnv, type Config } from "./config/env.js";
 import { authPlugin } from "./plugins/auth.js";
+import { auditPlugin } from "./plugins/audit.js";
 import { backgroundTasksPlugin } from "./plugins/background-tasks.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
+import { observabilityPlugin } from "./plugins/observability.js";
 import { rateLimitPlugin } from "./plugins/rate-limit.js";
 import { realtimePlugin } from "./plugins/realtime.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
+import { metricsRoutes } from "./modules/health/metrics.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { groupsRoutes } from "./modules/groups/groups.routes.js";
@@ -18,6 +21,7 @@ import { checkinsRoutes } from "./modules/checkins/checkins.routes.js";
 import { checkinSchedulerPlugin } from "./plugins/checkin-scheduler.js";
 import { journeysRoutes } from "./modules/journeys/journeys.routes.js";
 import { journeySchedulerPlugin } from "./plugins/journey-scheduler.js";
+import { REDACTED_LOG_PATHS, resolveRequestId } from "./observability/request-context.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
 
@@ -43,6 +47,30 @@ export interface BuildAppOptions {
    * Padrão: ligado, exceto em NODE_ENV=test (os testes chamam runOnce()).
    */
   journeySchedulerAutoStart?: boolean;
+  /** Sobrescreve METRICS_ENABLED (Phase 9; usado pelos testes). */
+  metricsEnabled?: boolean;
+  /** Sobrescreve METRICS_TOKEN (Phase 9; usado pelos testes). */
+  metricsToken?: string;
+  /**
+   * Registra uma rota que lança erro interno, para exercitar o handler de 500.
+   * Só é aceita em NODE_ENV=test — nunca existe em produção.
+   */
+  exposeTestErrorRoute?: boolean;
+}
+
+/**
+ * Controla o logging automático do Fastify (Phase 9).
+ *
+ * - `requestIdLogLabel: "requestId"`: o campo de correlação tem o mesmo nome em
+ *   log, header e corpo de erro.
+ * - `disableRequestLogging`: o par genérico do Fastify é substituído pelo
+ *   evento `http_request_completed` do plugin de observabilidade, que carrega
+ *   rota-template, usuário, duração e severidade adequada.
+ *
+ * Uma instância por app (o Fastify 5 espera a instância, não a classe).
+ */
+function createLogController(): LogController {
+  return new LogController({ disableRequestLogging: true, requestIdLogLabel: "requestId" });
 }
 
 function corsOptions(config: Config) {
@@ -58,39 +86,30 @@ function corsOptions(config: Config) {
  *
  * Fluxo por requisição (README §9): rota -> validação -> auth -> serviço -> resposta.
  * As rotas de autenticação e /me só são registradas quando há banco configurado.
+ *
+ * Observabilidade (Phase 9): cada requisição recebe um `requestId` UUID
+ * (aceitando `X-Request-Id` do cliente apenas se for UUID válido), que é
+ * devolvido no header, aparece em todo log da requisição e em toda resposta de
+ * erro. A redaction do logger é centralizada em `observability/request-context`.
  */
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = loadEnv();
 
   const app = Fastify({
+    // Request ID: header do cliente quando é UUID válido, senão um novo.
+    genReqId: (request) => resolveRequestId(request.headers["x-request-id"]),
+    logController: createLogController(),
     logger: options.logger
       ? {
           // Nunca registrar dados sensíveis (README §15): senhas, tokens, headers,
-          // localização precisa (Phase 3), push tokens (Phase 4).
-          redact: {
-            paths: [
-              "req.headers.authorization",
-              "req.headers.cookie",
-              "req.headers.idempotency-key",
-              "req.body.password",
-              "req.body.refreshToken",
-              "req.body.location",
-              "req.body.token",
-              // Phase 6 — localização ao vivo: nunca logar coordenadas.
-              "req.body.latitude",
-              "req.body.longitude",
-              "req.body.accuracy",
-              "req.body.altitude",
-              "req.body.heading",
-              "req.body.speed",
-            ],
-            remove: true,
-          },
+          // localização precisa (Phases 3/6/8), push tokens (Phase 4).
+          redact: { paths: [...REDACTED_LOG_PATHS], remove: true },
         }
       : false,
   });
 
   await app.register(errorHandlerPlugin);
+  await app.register(observabilityPlugin, {});
   await app.register(fastifyCors, corsOptions(config));
   await app.register(rateLimitPlugin);
   await app.register(backgroundTasksPlugin);
@@ -105,11 +124,23 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     options.pushProvider ?? new ExpoPushProvider({ accessToken: config.expoAccessToken }),
   );
 
-  await app.register(healthRoutes);
+  await app.register(healthRoutes, { appVersion: config.appVersion });
+  await app.register(metricsRoutes, {
+    enabled: options.metricsEnabled ?? config.metricsEnabled,
+    token: options.metricsToken ?? config.metricsToken,
+  });
+
+  // Rota de erro interno exclusiva de testes (nunca registrada fora deles).
+  if (options.exposeTestErrorRoute && config.nodeEnv === "test") {
+    app.get("/__test__/boom", async () => {
+      throw new Error("Falha interna sintética para teste.");
+    });
+  }
 
   const databaseUrl = options.databaseUrl ?? config.databaseUrl;
   if (databaseUrl) {
     await app.register(databasePlugin, { databaseUrl });
+    await app.register(auditPlugin);
     // Realtime (Phase 5) depende de auth + banco; registrado antes das rotas
     // que publicam eventos.
     await app.register(realtimePlugin);
@@ -128,7 +159,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       autoStart: options.journeySchedulerAutoStart ?? config.nodeEnv !== "test",
     });
   } else {
-    app.log.warn("DATABASE_URL ausente: rotas de autenticação não registradas.");
+    app.log.warn(
+      { event: "database_not_configured" },
+      "DATABASE_URL ausente: rotas de autenticação não registradas.",
+    );
   }
 
   return app;

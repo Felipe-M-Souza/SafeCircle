@@ -6,7 +6,7 @@ import { JourneysHomeSection } from "../components/JourneysHomeSection";
 import { HoldToActivateButton } from "../components/HoldToActivateButton";
 import { NotificationsCard } from "../components/NotificationsCard";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { strings, translateErrorCode } from "../i18n/pt-BR";
+import { strings, translateErrorCode, translateApiError } from "../i18n/pt-BR";
 import { ApiError, type EmergencyAlert, type GroupSummary } from "../lib/api";
 import { generateIdempotencyKey } from "../lib/idempotency";
 import { captureInitialLocation } from "../lib/location";
@@ -59,9 +59,7 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
     } else {
       setGroups([]);
       const error = groupsResult.reason;
-      setLoadError(
-        error instanceof ApiError ? translateErrorCode(error.code) : strings.groups.loadError,
-      );
+      setLoadError(translateApiError(error, strings.groups.loadError));
     }
 
     if (alertsResult.status === "fulfilled") {

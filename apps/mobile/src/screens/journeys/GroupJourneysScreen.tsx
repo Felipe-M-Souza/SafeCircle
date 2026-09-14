@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { Screen } from "../../components/Screen";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type SafeJourney } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type SafeJourney } from "../../lib/api";
 import { formatTime } from "../../lib/time";
 import { isJourneyEvent, type RealtimeEvent } from "../../realtime/events";
 import { useRealtimeEvents } from "../../realtime/RealtimeProvider";
@@ -31,7 +31,7 @@ export function GroupJourneysScreen({
       setJourneys(await api.listGroupJourneys(groupId));
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
       setJourneys((previous) => previous ?? []);
     }
   }, [api, groupId, t.loadError]);

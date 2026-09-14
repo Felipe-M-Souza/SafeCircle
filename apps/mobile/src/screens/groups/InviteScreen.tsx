@@ -4,8 +4,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
 import { TextField } from "../../components/TextField";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
 import { validateEmail } from "../../lib/validation";
 import { colors } from "../../theme/colors";
 import type { Nav } from "../../navigation/types";
@@ -40,7 +39,7 @@ export function InviteScreen({
       setMessage(t.success);
       setEmail("");
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setSubmitting(false);
     }

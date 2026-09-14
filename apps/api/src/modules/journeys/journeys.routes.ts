@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
 import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
+import { journeyTransitionsTotal, liveLocationUpdatesTotal } from "../../observability/metrics.js";
 import { journeyRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
 import { parseIdempotencyKey } from "../../shared/idempotency.js";
@@ -90,6 +91,18 @@ export async function journeysRoutes(
         reply.header("Idempotent-Replayed", "true");
       } else {
         publishJourney("JOURNEY_CREATED", journey);
+        journeyTransitionsTotal.inc({ transition: "created" });
+        app.auditRequest(request, {
+          eventType: "JOURNEY_CREATED",
+          targetType: "JOURNEY",
+          targetId: journey.id,
+          groupId: journey.groupId,
+          // Allow-listed: nunca o rótulo do destino em si.
+          metadata: {
+            hasDestination: journey.destinationLabel !== null,
+            liveLocationEnabled: journey.liveLocationEnabled,
+          },
+        });
       }
       return reply.status(201).send(journey);
     },
@@ -110,7 +123,16 @@ export async function journeysRoutes(
       request.auth.userId,
       journeyIdOf(request),
     );
-    if (changed) publishJourney("JOURNEY_ARRIVED", journey);
+    if (changed) {
+      publishJourney("JOURNEY_ARRIVED", journey);
+      journeyTransitionsTotal.inc({ transition: "arrived" });
+      app.auditRequest(request, {
+        eventType: "JOURNEY_ARRIVED",
+        targetType: "JOURNEY",
+        targetId: journey.id,
+        groupId: journey.groupId,
+      });
+    }
     return journey;
   });
 
@@ -120,7 +142,16 @@ export async function journeysRoutes(
       request.auth.userId,
       journeyIdOf(request),
     );
-    if (changed) publishJourney("JOURNEY_CANCELLED", journey);
+    if (changed) {
+      publishJourney("JOURNEY_CANCELLED", journey);
+      journeyTransitionsTotal.inc({ transition: "cancelled" });
+      app.auditRequest(request, {
+        eventType: "JOURNEY_CANCELLED",
+        targetType: "JOURNEY",
+        targetId: journey.id,
+        groupId: journey.groupId,
+      });
+    }
     return journey;
   });
 
@@ -148,6 +179,13 @@ export async function journeysRoutes(
         groupId: journey.groupId,
         userId: request.auth.userId,
       });
+      app.auditRequest(request, {
+        eventType: "LIVE_LOCATION_STARTED",
+        targetType: "LIVE_LOCATION_SESSION",
+        targetId: session.sessionId,
+        groupId: journey.groupId,
+        metadata: { resource: "journey" },
+      });
     }
     return reply.status(created ? 201 : 200).send(session);
   });
@@ -170,6 +208,8 @@ export async function journeysRoutes(
         groupId: journey.groupId,
         userId: request.auth.userId,
       });
+      // Contagem apenas: nenhuma coordenada vira métrica.
+      liveLocationUpdatesTotal.inc({ resource: "journey" });
     }
     return reply
       .status(result.replayed ? 200 : 201)
@@ -189,6 +229,13 @@ export async function journeysRoutes(
         id: journeyId,
         groupId: journey.groupId,
         userId: request.auth.userId,
+      });
+      app.auditRequest(request, {
+        eventType: "LIVE_LOCATION_STOPPED",
+        targetType: "LIVE_LOCATION_SESSION",
+        targetId: state.sessionId,
+        groupId: journey.groupId,
+        metadata: { resource: "journey", source: "manual" },
       });
     }
     return state;

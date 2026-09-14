@@ -57,7 +57,15 @@ SOS. Opcionalmente (opt-in explícito, `liveLocationEnabled`), o dono compartilh
 a localização ao vivo durante o trajeto, em **primeiro plano** (mesma limitação
 da Phase 6), em tabelas próprias; a sessão encerra ao chegar/cancelar. Retenção:
 localização em 30 dias e trajeto em 90 dias via `pnpm journey:cleanup` (ver
-ADR 0009).
+ADR 0009). Phase 9 (Observabilidade e Confiabilidade) concluída, sem mudança
+funcional: toda requisição tem `requestId` (devolvido em `X-Request-Id` e
+presente em toda resposta de erro), falhas internas ganham `errorId` que o app
+mostra como "Código de suporte", logs são estruturados com redaction
+centralizada, `GET /ready` verifica o banco (503 quando não pronta) enquanto
+`GET /health` segue sendo liveness puro, `GET /metrics` expõe métricas
+Prometheus (desabilitado por padrão, protegível por token) e ações críticas
+deixam trilha em `audit_events`, com retenção de 180 dias via
+`pnpm audit:cleanup` (ver ADR 0010 e o [runbook](docs/operations/runbook.md)).
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -89,6 +97,31 @@ do alerta, ADR 0007). A retenção do trajeto (localização em 30 dias, trajeto
 
 ```bash
 pnpm journey:cleanup         # apaga localização (30 dias) e trajetos finalizados (90 dias)
+```
+
+**Observabilidade e operação (Phase 9):** o guia de plantão é o
+[runbook](docs/operations/runbook.md); as decisões estão no ADR 0010.
+
+| Endpoint   | Para quê                                                              |
+| ---------- | --------------------------------------------------------------------- |
+| `/health`  | Liveness — o processo responde. Não consulta o banco.                  |
+| `/ready`   | Readiness — verifica o banco (timeout curto). `503` quando não pronta. |
+| `/metrics` | Métricas Prometheus. Desabilitado por padrão (404).                    |
+
+Variáveis novas (ver `.env.example`; nenhuma tem valor real versionado):
+
+| Variável          | Padrão  | Efeito                                                          |
+| ----------------- | ------- | --------------------------------------------------------------- |
+| `METRICS_ENABLED` | `false` | `true` registra `GET /metrics`; `false` faz a rota não existir.  |
+| `METRICS_TOKEN`   | vazio   | Quando definido, `/metrics` exige `Authorization: Bearer`.        |
+| `APP_VERSION`     | vazio   | Aparece nos logs de startup e em `/ready`.                        |
+| `GIT_SHA`         | vazio   | Aparece nos logs de startup.                                      |
+
+Habilitar `/metrics` **sem** `METRICS_TOKEN` só é aceitável com a porta em rede
+privada. A trilha de auditoria precisa de limpeza periódica (cron diário):
+
+```bash
+pnpm audit:cleanup           # apaga eventos de auditoria com mais de 180 dias
 ```
 
 **Push (requisitos):** notificações funcionam apenas em build nativo

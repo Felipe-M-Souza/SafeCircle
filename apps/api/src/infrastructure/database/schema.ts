@@ -3,6 +3,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -559,6 +560,54 @@ export const journeyLocationUpdates = pgTable(
   ],
 );
 
+// ------------------------------------------------------------------
+// Phase 9 — Observabilidade e Confiabilidade
+// ------------------------------------------------------------------
+
+/**
+ * Trilha de auditoria de ações críticas (Phase 9).
+ *
+ * Objetivo: segurança, investigação e suporte — NÃO é event sourcing e não
+ * reconstrói estado. Guarda quem fez o quê, sobre qual recurso e com que
+ * desfecho, correlacionado ao `requestId`.
+ *
+ * Privacidade: `metadata` é allow-listed no código (ver observability/audit.ts)
+ * — nunca body completo, senha, token, coordenada, endereço ou resposta bruta
+ * de provedor. IP e User-Agent não são persistidos nesta fase.
+ *
+ * `actorUserId`/`groupId` usam ON DELETE SET NULL: apagar um usuário ou grupo
+ * não pode apagar a trilha de auditoria. `targetId` é intencionalmente sem FK
+ * (o recurso citado pode já ter sido removido pela retenção do domínio).
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    // Conjunto controlado no código (AuditEventType) — texto para não exigir
+    // migration a cada novo evento auditável.
+    eventType: text("event_type").notNull(),
+    // Nulo em eventos do sistema (ex.: vencimento por scheduler).
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    targetType: text("target_type"),
+    targetId: uuid("target_id"),
+    groupId: uuid("group_id").references(() => trustedGroups.id, { onDelete: "set null" }),
+    outcome: text("outcome").notNull(),
+    requestId: uuid("request_id"),
+    metadata: jsonb("metadata").$type<Record<string, string | number | boolean>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Retenção e consultas por janela de tempo.
+    index("audit_events_created_at_idx").on(table.createdAt),
+    index("audit_events_event_type_created_idx").on(table.eventType, table.createdAt),
+    index("audit_events_actor_created_idx").on(table.actorUserId, table.createdAt),
+    index("audit_events_target_idx").on(table.targetType, table.targetId),
+    index("audit_events_group_created_idx").on(table.groupId, table.createdAt),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
   memberships: many(groupMemberships),
@@ -731,3 +780,5 @@ export type SafeJourney = typeof safeJourneys.$inferSelect;
 export type JourneyStatus = (typeof journeyStatus.enumValues)[number];
 export type JourneyLocationSession = typeof journeyLocationSessions.$inferSelect;
 export type JourneyLocationUpdate = typeof journeyLocationUpdates.$inferSelect;
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type NewAuditEvent = typeof auditEvents.$inferInsert;

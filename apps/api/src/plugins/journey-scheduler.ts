@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { createRealtimeEvent } from "../infrastructure/realtime/events.js";
 import { notifyJourneyOverdue } from "../modules/journeys/journey-notifications.service.js";
 import { JourneyScheduler } from "../modules/journeys/journey-scheduler.js";
+import { journeyTransitionsTotal } from "../observability/metrics.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -28,6 +29,16 @@ export const journeySchedulerPlugin = fp(
       log: app.log,
       intervalMs: options.intervalMs,
       onOverdue: (journey) => {
+        journeyTransitionsTotal.inc({ transition: "overdue" });
+        // Ator nulo: a transição é do sistema, não de uma pessoa.
+        app.audit({
+          eventType: "JOURNEY_OVERDUE",
+          actorUserId: null,
+          targetType: "JOURNEY",
+          targetId: journey.id,
+          groupId: journey.groupId,
+          metadata: { source: "scheduler" },
+        });
         app.background.run("realtime:JOURNEY_OVERDUE", () =>
           app.realtime.publishToGroup(
             journey.groupId,
@@ -58,6 +69,11 @@ export const journeySchedulerPlugin = fp(
   },
   {
     name: "safecircle-journey-scheduler",
-    dependencies: ["safecircle-database", "safecircle-realtime", "safecircle-background-tasks"],
+    dependencies: [
+      "safecircle-database",
+      "safecircle-realtime",
+      "safecircle-background-tasks",
+      "safecircle-audit",
+    ],
   },
 );

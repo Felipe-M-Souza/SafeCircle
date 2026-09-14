@@ -36,6 +36,21 @@ const envSchema = z
     // Notificações push (Phase 4): token de acesso opcional da Expo Push API.
     // Segredo do backend — NUNCA versionar nem expor ao app.
     EXPO_ACCESS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+
+    // Observabilidade (Phase 9).
+    // /metrics é desligado por padrão: só existe quando explicitamente habilitado.
+    METRICS_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(["true", "false", "1", "0"])
+        .default("false")
+        .transform((value) => value === "true" || value === "1"),
+    ),
+    // Bearer exigido em /metrics quando definido. Segredo — NUNCA versionar.
+    METRICS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(16).optional()),
+    // Identificação da build (valores públicos, não são secrets).
+    APP_VERSION: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
+    GIT_SHA: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production") {
@@ -59,6 +74,10 @@ export interface Config {
   refreshTokenTtlDays: number;
   corsOrigins?: string[];
   expoAccessToken?: string;
+  metricsEnabled: boolean;
+  metricsToken?: string;
+  appVersion?: string;
+  gitSha?: string;
 }
 
 let cachedConfig: Config | null = null;
@@ -90,6 +109,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
       .map((origin) => origin.trim())
       .filter(Boolean),
     expoAccessToken: env.EXPO_ACCESS_TOKEN,
+    metricsEnabled: env.METRICS_ENABLED,
+    metricsToken: env.METRICS_TOKEN,
+    appVersion: env.APP_VERSION,
+    gitSha: env.GIT_SHA,
   };
 
   return cachedConfig;

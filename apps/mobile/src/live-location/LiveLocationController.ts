@@ -1,4 +1,4 @@
-import { strings, translateErrorCode } from "../i18n/pt-BR";
+import { strings, translateErrorCode, translateApiError } from "../i18n/pt-BR";
 import {
   ApiError,
   type ApiClient,
@@ -144,8 +144,7 @@ export class LiveLocationController {
       this.update({
         state: "INACTIVE",
         permission,
-        error:
-          error instanceof ApiError ? translateErrorCode(error.code) : strings.common.genericError,
+        error: translateApiError(error, strings.common.genericError),
       });
       return false;
     }

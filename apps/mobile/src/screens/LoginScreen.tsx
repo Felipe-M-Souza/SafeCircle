@@ -11,8 +11,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
-import { strings, translateErrorCode } from "../i18n/pt-BR";
-import { ApiError } from "../lib/api";
+import { strings, translateApiError } from "../i18n/pt-BR";
 import { validateLogin } from "../lib/validation";
 import { colors } from "../theme/colors";
 
@@ -40,9 +39,7 @@ export function LoginScreen({
     try {
       await signIn(email, password);
     } catch (error) {
-      setFormError(
-        error instanceof ApiError ? translateErrorCode(error.code) : strings.common.genericError,
-      );
+      setFormError(translateApiError(error, strings.common.genericError));
     } finally {
       setSubmitting(false);
     }

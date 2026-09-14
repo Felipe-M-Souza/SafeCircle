@@ -28,6 +28,7 @@ export class JourneyScheduler extends OverdueScheduler<OverdueJourney> {
       onOverdue: options.onOverdue,
       describe: (journey) => ({ journeyId: journey.id, groupId: journey.groupId }),
       label: "trajeto",
+      metricName: "journeys",
       intervalMs: options.intervalMs,
       batchSize: options.batchSize,
       now: options.now,

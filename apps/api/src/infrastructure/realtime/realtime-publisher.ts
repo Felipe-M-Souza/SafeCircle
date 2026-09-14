@@ -2,6 +2,11 @@ import { eq } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { Database } from "../database/client.js";
 import { groupMemberships } from "../database/schema.js";
+import {
+  realtimeEventsPublishedTotal,
+  realtimePublishFailuresTotal,
+  safeLabel,
+} from "../../observability/metrics.js";
 import type { RealtimeEvent } from "./events.js";
 import type { RealtimeHub } from "./realtime-hub.js";
 
@@ -39,21 +44,48 @@ export class HubRealtimePublisher implements RealtimePublisher {
     event: RealtimeEvent,
     options: PublishToGroupOptions = {},
   ): Promise<number> {
-    const rows = await this.db
-      .select({ userId: groupMemberships.userId })
-      .from(groupMemberships)
-      .where(eq(groupMemberships.groupId, groupId));
-    const excluded = new Set(options.exclude ?? []);
-    const recipients = rows.map((row) => row.userId).filter((userId) => !excluded.has(userId));
-    const delivered = this.hub.send(recipients, event);
-    this.log.debug(
-      { eventType: event.type, eventId: event.eventId, groupId, delivered },
-      "Evento realtime publicado",
-    );
-    return delivered;
+    const eventType = safeLabel(event.type);
+    try {
+      const rows = await this.db
+        .select({ userId: groupMemberships.userId })
+        .from(groupMemberships)
+        .where(eq(groupMemberships.groupId, groupId));
+      const excluded = new Set(options.exclude ?? []);
+      const recipients = rows.map((row) => row.userId).filter((userId) => !excluded.has(userId));
+      const delivered = this.hub.send(recipients, event);
+      realtimeEventsPublishedTotal.inc({ event_type: eventType });
+      this.log.debug(
+        {
+          event: "realtime_event_published",
+          eventType: event.type,
+          eventId: event.eventId,
+          groupId,
+          delivered,
+        },
+        "Evento realtime publicado",
+      );
+      return delivered;
+    } catch (error) {
+      // A falha é contabilizada aqui e propagada: quem publica roda em segundo
+      // plano e nunca desfaz a operação de negócio por causa disso.
+      realtimePublishFailuresTotal.inc({ event_type: eventType });
+      this.log.error(
+        { event: "realtime_publish_failed", err: error, eventType: event.type, groupId },
+        "Falha ao publicar evento realtime",
+      );
+      throw error;
+    }
   }
 
   publishToUser(userId: string, event: RealtimeEvent): number {
-    return this.hub.send([userId], event);
+    const eventType = safeLabel(event.type);
+    try {
+      const delivered = this.hub.send([userId], event);
+      realtimeEventsPublishedTotal.inc({ event_type: eventType });
+      return delivered;
+    } catch (error) {
+      realtimePublishFailuresTotal.inc({ event_type: eventType });
+      throw error;
+    }
   }
 }

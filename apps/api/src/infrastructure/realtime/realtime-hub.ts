@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
 import type { WebSocket } from "ws";
+import {
+  realtimeConnections,
+  realtimeConnectionsTotal,
+  realtimeDisconnectsTotal,
+  safeLabel,
+} from "../../observability/metrics.js";
 import type { RealtimeEvent } from "./events.js";
 
 /**
@@ -90,8 +96,8 @@ export class RealtimeHub {
     });
     // Server-push only: nada que o cliente envie é interpretado como comando.
     socket.on("message", () => {});
-    socket.on("close", () => this.unregister(id));
-    socket.on("error", () => this.unregister(id));
+    socket.on("close", () => this.unregister(id, "closed"));
+    socket.on("error", () => this.unregister(id, "socket_error"));
 
     if (options.expiresAt) {
       const delay = Math.max(0, options.expiresAt.getTime() - Date.now());
@@ -101,11 +107,17 @@ export class RealtimeHub {
     }
 
     this.ensureHeartbeat();
-    this.log?.debug({ connectionId: id, userId }, "Conexão realtime registrada");
+    // Métricas (Phase 9): apenas contagens — nenhum id de conexão ou usuário.
+    realtimeConnectionsTotal.inc();
+    realtimeConnections.set(this.connections.size);
+    this.log?.debug(
+      { event: "realtime_connection_registered", connectionId: id, userId },
+      "Conexão realtime registrada",
+    );
     return id;
   }
 
-  unregister(connectionId: string): void {
+  unregister(connectionId: string, reason = "closed"): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
       return;
@@ -124,7 +136,12 @@ export class RealtimeHub {
     if (this.connections.size === 0) {
       this.stopHeartbeat();
     }
-    this.log?.debug({ connectionId, userId: connection.userId }, "Conexão realtime removida");
+    realtimeConnections.set(this.connections.size);
+    realtimeDisconnectsTotal.inc({ reason: safeLabel(reason) });
+    this.log?.debug(
+      { event: "realtime_connection_removed", connectionId, userId: connection.userId, reason },
+      "Conexão realtime removida",
+    );
   }
 
   /** Envia o evento a todas as conexões abertas dos usuários informados. */
@@ -164,7 +181,7 @@ export class RealtimeHub {
     if (!connection) {
       return;
     }
-    this.unregister(connectionId);
+    this.unregister(connectionId, reason);
     try {
       connection.socket.close(code, reason);
     } catch {
@@ -201,7 +218,7 @@ export class RealtimeHub {
   private heartbeatTick(): void {
     for (const [id, connection] of [...this.connections]) {
       if (!connection.alive) {
-        this.unregister(id);
+        this.unregister(id, "heartbeat_timeout");
         connection.socket.terminate();
         continue;
       }
@@ -209,7 +226,7 @@ export class RealtimeHub {
       try {
         connection.socket.ping();
       } catch {
-        this.unregister(id);
+        this.unregister(id, "ping_failed");
         connection.socket.terminate();
       }
     }

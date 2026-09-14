@@ -1,4 +1,11 @@
 import type { FastifyBaseLogger } from "fastify";
+import {
+  safeLabel,
+  schedulerFailuresTotal,
+  schedulerItemsProcessedTotal,
+  schedulerRunDuration,
+  schedulerRunsTotal,
+} from "../observability/metrics.js";
 
 /**
  * Scheduler genérico de vencimento por polling sobre o PostgreSQL (Phases 7/8).
@@ -25,6 +32,8 @@ export interface OverdueSchedulerOptions<T> {
   describe: (item: T) => Record<string, unknown>;
   /** Nome do recurso para as mensagens de log (ex.: "check-in", "trajeto"). */
   label: string;
+  /** Identificador do scheduler nas métricas (conjunto controlado). */
+  metricName: "checkins" | "journeys";
   intervalMs?: number;
   batchSize?: number;
   now?: Clock;
@@ -82,21 +91,48 @@ export class OverdueScheduler<T> {
   }
 
   private async execute(): Promise<number> {
+    const scheduler = safeLabel(this.options.metricName);
+    const startedAt = process.hrtime.bigint();
     const now = this.now();
-    const overdue = await this.options.findOverdue(now, this.batchSize);
+    let overdue: T[];
+
+    try {
+      overdue = await this.options.findOverdue(now, this.batchSize);
+    } catch (error) {
+      schedulerFailuresTotal.inc({ scheduler });
+      schedulerRunsTotal.inc({ scheduler, result: "failed" });
+      schedulerRunDuration.observe(
+        { scheduler },
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+      );
+      throw error;
+    }
+
+    let effectFailures = 0;
     for (const item of overdue) {
       try {
         await this.options.onOverdue(item);
       } catch (error) {
+        effectFailures += 1;
+        schedulerFailuresTotal.inc({ scheduler });
         this.options.log.error(
-          { err: error, ...this.options.describe(item) },
+          {
+            event: "scheduler_item_effects_failed",
+            err: error,
+            scheduler,
+            ...this.options.describe(item),
+          },
           `Falha nos efeitos de ${this.options.label} vencido`,
         );
       }
     }
+
+    schedulerRunsTotal.inc({ scheduler, result: effectFailures > 0 ? "partial" : "ok" });
+    schedulerRunDuration.observe({ scheduler }, Number(process.hrtime.bigint() - startedAt) / 1e9);
     if (overdue.length > 0) {
+      schedulerItemsProcessedTotal.inc({ scheduler }, overdue.length);
       this.options.log.info(
-        { processed: overdue.length },
+        { event: "scheduler_items_marked_overdue", scheduler, processed: overdue.length },
         `${this.options.label} marcados como OVERDUE`,
       );
     }

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createRealtimeEvent } from "../../infrastructure/realtime/events.js";
+import { alertTransitionsTotal, liveLocationUpdatesTotal } from "../../observability/metrics.js";
 import { errors } from "../../shared/errors.js";
 import { parseIdempotencyKey } from "../../shared/idempotency.js";
 import { notifyAlertCreated } from "../notifications/alert-notifications.service.js";
@@ -77,6 +78,13 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
         alert.groupId,
         createRealtimeEvent("ALERT_CREATED", { alertId: alert.id, groupId: alert.groupId }),
       );
+      alertTransitionsTotal.inc({ transition: "created" });
+      app.auditRequest(request, {
+        eventType: "ALERT_CREATED",
+        targetType: "ALERT",
+        targetId: alert.id,
+        groupId: alert.groupId,
+      });
     }
     return reply.status(201).send(alert);
   });
@@ -102,6 +110,13 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
       alert.groupId,
       createRealtimeEvent("ALERT_RESOLVED", { alertId: alert.id, groupId: alert.groupId }),
     );
+    alertTransitionsTotal.inc({ transition: "resolved" });
+    app.auditRequest(request, {
+      eventType: "ALERT_RESOLVED",
+      targetType: "ALERT",
+      targetId: alert.id,
+      groupId: alert.groupId,
+    });
     if (stoppedLiveSessionId) {
       publishToGroup(
         alert.groupId,
@@ -122,6 +137,13 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
       alert.groupId,
       createRealtimeEvent("ALERT_CANCELLED", { alertId: alert.id, groupId: alert.groupId }),
     );
+    alertTransitionsTotal.inc({ transition: "cancelled" });
+    app.auditRequest(request, {
+      eventType: "ALERT_CANCELLED",
+      targetType: "ALERT",
+      targetId: alert.id,
+      groupId: alert.groupId,
+    });
     if (stoppedLiveSessionId) {
       publishToGroup(
         alert.groupId,
@@ -174,6 +196,13 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
           sessionId: session.sessionId,
         }),
       );
+      app.auditRequest(request, {
+        eventType: "LIVE_LOCATION_STARTED",
+        targetType: "LIVE_LOCATION_SESSION",
+        targetId: session.sessionId,
+        groupId: alert.groupId,
+        metadata: { resource: "alert" },
+      });
     }
     return reply.status(created ? 201 : 200).send(session);
   });
@@ -194,6 +223,8 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
           sessionId: result.sessionId,
         }),
       );
+      // Contagem apenas: nenhuma coordenada vira métrica.
+      liveLocationUpdatesTotal.inc({ resource: "alert" });
     }
     return reply
       .status(result.replayed ? 200 : 201)
@@ -213,6 +244,13 @@ export async function alertsRoutes(app: FastifyInstance): Promise<void> {
           sessionId: state.sessionId,
         }),
       );
+      app.auditRequest(request, {
+        eventType: "LIVE_LOCATION_STOPPED",
+        targetType: "LIVE_LOCATION_SESSION",
+        targetId: state.sessionId,
+        groupId: alert.groupId,
+        metadata: { resource: "alert", source: "manual" },
+      });
     }
     return state;
   });

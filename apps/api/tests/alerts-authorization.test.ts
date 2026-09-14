@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -71,7 +72,10 @@ describe("GET /alerts/:alertId — autorização e anti-IDOR", () => {
       headers: authHeaders(outsider),
     });
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toEqual({ code: "ALERT_NOT_FOUND", message: "Alerta não encontrado." });
+    expect(errorBodyWithoutRequestId(res)).toEqual({
+      code: "ALERT_NOT_FOUND",
+      message: "Alerta não encontrado.",
+    });
     for (const field of ["latitude", "longitude", "accuracy", "location", "groupName"]) {
       expect(res.payload).not.toContain(field);
     }
@@ -89,7 +93,7 @@ describe("GET /alerts/:alertId — autorização e anti-IDOR", () => {
       headers: authHeaders(outsider),
     });
     expect(existing.statusCode).toBe(missing.statusCode);
-    expect(existing.json()).toEqual(missing.json());
+    expect(errorBodyWithoutRequestId(existing)).toEqual(errorBodyWithoutRequestId(missing));
   });
 
   it("id inválido resulta em 404 ALERT_NOT_FOUND (não em erro de SQL)", async () => {

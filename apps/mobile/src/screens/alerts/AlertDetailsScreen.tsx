@@ -5,9 +5,8 @@ import { LiveLocationSection } from "../../components/LiveLocationSection";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
 import { getLiveLocationController } from "../../live-location/LiveLocationController";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
+import { strings, translateApiError } from "../../i18n/pt-BR";
 import {
-  ApiError,
   type AcknowledgementType,
   type AlertAcknowledgement,
   type EmergencyAlert,
@@ -74,7 +73,7 @@ export function AlertDetailsScreen({
       const [alertResult] = await Promise.all([api.getAlert(alertId), loadAcknowledgements()]);
       setAlert(alertResult);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
     }
   }, [api, alertId, loadAcknowledgements, t.loadError]);
 
@@ -123,7 +122,7 @@ export function AlertDetailsScreen({
       // Estado pode ter mudado (ex.: já encerrado): ressincroniza e só então
       // exibe o erro, para que a mensagem não seja apagada pela recarga.
       await load();
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setBusy(false);
       setConfirmingCancel(false);
@@ -137,7 +136,7 @@ export function AlertDetailsScreen({
       await api.setAcknowledgement(alertId, type);
       await loadAcknowledgements();
     } catch (e) {
-      setAckError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setAckError(translateApiError(e, strings.common.genericError));
       await load();
     } finally {
       setAckBusy(null);

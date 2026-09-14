@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -194,7 +195,7 @@ describe("Check-in de Segurança", () => {
       expect(asOutsider.statusCode).toBe(404);
       expect(asOutsider.json().code).toBe("CHECKIN_NOT_FOUND");
       const missing = await getCheckin(app, outsider, "00000000-0000-4000-8000-000000000000");
-      expect(missing.json()).toEqual(asOutsider.json());
+      expect(errorBodyWithoutRequestId(missing)).toEqual(errorBodyWithoutRequestId(asOutsider));
       expect((await getCheckin(app, member, "nao-uuid")).statusCode).toBe(404);
 
       await app.inject({

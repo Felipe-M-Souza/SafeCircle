@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
-import { strings, translateErrorCode } from "../i18n/pt-BR";
-import { ApiError, type SafetyCheckin } from "../lib/api";
+import { strings, translateApiError } from "../i18n/pt-BR";
+import { type SafetyCheckin } from "../lib/api";
 import { formatTime, secondsUntil } from "../lib/time";
 import { useNow } from "../live-location/useLiveLocation";
 import { isCheckinEvent, type RealtimeEvent } from "../realtime/events";
@@ -38,7 +38,7 @@ export function CheckinsHomeSection({ nav }: { nav: Nav }): React.JSX.Element {
       setCheckins([...active, ...overdue]);
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
       setCheckins((previous) => previous ?? []);
     }
   }, [api, t.loadError]);
@@ -79,7 +79,7 @@ export function CheckinsHomeSection({ nav }: { nav: Nav }): React.JSX.Element {
     } catch (e) {
       // Recarrega primeiro: o estado autoritativo vem do servidor; a mensagem fica visível.
       await load();
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : strings.common.genericError);
+      setError(translateApiError(e, strings.common.genericError));
     } finally {
       setBusy(false);
       setConfirmingCancel(false);

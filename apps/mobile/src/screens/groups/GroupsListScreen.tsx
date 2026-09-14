@@ -3,8 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
-import { strings, translateErrorCode } from "../../i18n/pt-BR";
-import { ApiError, type GroupSummary } from "../../lib/api";
+import { strings, translateApiError } from "../../i18n/pt-BR";
+import { type GroupSummary } from "../../lib/api";
 import { colors } from "../../theme/colors";
 import type { Nav } from "../../navigation/types";
 
@@ -19,7 +19,7 @@ export function GroupsListScreen({ nav }: { nav: Nav }): React.JSX.Element {
     try {
       setGroups(await api.listGroups());
     } catch (e) {
-      setError(e instanceof ApiError ? translateErrorCode(e.code) : t.loadError);
+      setError(translateApiError(e, t.loadError));
       setGroups([]);
     }
   }, [api, t.loadError]);

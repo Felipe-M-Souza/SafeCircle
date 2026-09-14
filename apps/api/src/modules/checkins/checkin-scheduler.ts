@@ -33,6 +33,7 @@ export class CheckinScheduler extends OverdueScheduler<OverdueCheckin> {
       onOverdue: options.onOverdue,
       describe: (checkin) => ({ checkinId: checkin.id, groupId: checkin.groupId }),
       label: "check-in",
+      metricName: "checkins",
       intervalMs: options.intervalMs,
       batchSize: options.batchSize,
       now: options.now,
