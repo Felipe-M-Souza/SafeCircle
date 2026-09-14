@@ -17,7 +17,11 @@
     "location:cleanup": "tsx src/scripts/location-cleanup.ts",
     "checkin:cleanup": "tsx src/scripts/checkin-cleanup.ts",
     "journey:cleanup": "tsx src/scripts/journey-cleanup.ts",
-    "audit:cleanup": "tsx src/scripts/audit-cleanup.ts"
+    "audit:cleanup": "tsx src/scripts/audit-cleanup.ts",
+    "outbox:status": "tsx src/scripts/outbox-cli.ts status",
+    "outbox:list-dead": "tsx src/scripts/outbox-cli.ts list-dead",
+    "outbox:retry-dead": "tsx src/scripts/outbox-cli.ts retry-dead",
+    "outbox:cleanup": "tsx src/scripts/outbox-cli.ts cleanup"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
