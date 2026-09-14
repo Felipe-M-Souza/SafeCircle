@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -134,7 +135,7 @@ describe("Acknowledgements de alerta", () => {
     expect(read.json().code).toBe("ALERT_NOT_FOUND");
 
     const missing = await list(outsider, "00000000-0000-4000-8000-000000000000");
-    expect(missing.json()).toEqual(read.json());
+    expect(errorBodyWithoutRequestId(missing)).toEqual(errorBodyWithoutRequestId(read));
   });
 
   it("alerta encerrado não aceita alteração (409 ALERT_NOT_ACTIVE), mas continua legível", async () => {

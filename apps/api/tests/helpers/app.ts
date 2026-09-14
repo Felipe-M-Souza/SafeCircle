@@ -7,6 +7,14 @@ import { getTestDatabaseUrl } from "./test-db.js";
 export interface TestAppOptions {
   /** Padrão: um FakePushProvider novo (nenhum teste chama a API real da Expo). */
   pushProvider?: PushProvider;
+  /** Phase 9: habilita /metrics nesta instância. */
+  metricsEnabled?: boolean;
+  /** Phase 9: exige Bearer em /metrics. */
+  metricsToken?: string;
+  /** Phase 9: registra a rota sintética de erro interno (só em NODE_ENV=test). */
+  exposeTestErrorRoute?: boolean;
+  /** Habilita o logger real (testes de redaction capturam a saída). */
+  logger?: boolean;
 }
 
 /**
@@ -15,9 +23,12 @@ export interface TestAppOptions {
  */
 export async function createTestApp(options: TestAppOptions = {}): Promise<FastifyInstance> {
   const app = await buildApp({
-    logger: false,
+    logger: options.logger ?? false,
     databaseUrl: getTestDatabaseUrl(),
     pushProvider: options.pushProvider ?? new FakePushProvider(),
+    metricsEnabled: options.metricsEnabled,
+    metricsToken: options.metricsToken,
+    exposeTestErrorRoute: options.exposeTestErrorRoute,
     // Os testes controlam o vencimento via app.checkinScheduler.runOnce().
     checkinSchedulerAutoStart: false,
     // Os testes controlam o vencimento via app.journeyScheduler.runOnce().
