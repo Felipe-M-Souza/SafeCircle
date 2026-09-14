@@ -1,5 +1,13 @@
 import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
+import {
+  backgroundTasksCompletedTotal,
+  backgroundTasksDuration,
+  backgroundTasksFailedTotal,
+  backgroundTasksPending,
+  backgroundTasksStartedTotal,
+  taskTypeLabel,
+} from "../observability/metrics.js";
 
 /**
  * Tarefas em segundo plano após a resposta (Phase 4).
@@ -47,13 +55,31 @@ export const backgroundTasksPlugin = fp(
 
     const background: BackgroundTasks = {
       run(name, task) {
+        // Métricas (Phase 9): tipo controlado, nunca IDs.
+        const taskType = taskTypeLabel(name);
+        const startedAt = process.hrtime.bigint();
+        backgroundTasksStartedTotal.inc({ task_type: taskType });
+        backgroundTasksPending.set(pending.size + 1);
+
         const promise = Promise.resolve()
           .then(task)
+          .then(() => {
+            backgroundTasksCompletedTotal.inc({ task_type: taskType });
+          })
           .catch((error: unknown) => {
-            app.log.error({ err: error, task: name }, "Falha em tarefa em segundo plano");
+            backgroundTasksFailedTotal.inc({ task_type: taskType });
+            app.log.error(
+              { event: "background_task_failed", err: error, taskType },
+              "Falha em tarefa em segundo plano",
+            );
           })
           .finally(() => {
+            backgroundTasksDuration.observe(
+              { task_type: taskType },
+              Number(process.hrtime.bigint() - startedAt) / 1e9,
+            );
             pending.delete(promise);
+            backgroundTasksPending.set(pending.size);
           });
         pending.add(promise);
       },

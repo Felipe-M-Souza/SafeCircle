@@ -3,6 +3,14 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Database } from "../../infrastructure/database/client.js";
 import { groupMemberships, pushDevices } from "../../infrastructure/database/schema.js";
 import type { PushMessage, PushProvider } from "../../infrastructure/push/push-provider.js";
+import {
+  pushDispatchTotal,
+  pushDuration,
+  pushFailuresTotal,
+  pushInvalidTokensTotal,
+  pushMessagesTotal,
+  safeLabel,
+} from "../../observability/metrics.js";
 
 /**
  * Entrega de push a membros de um grupo (Phases 4/7).
@@ -53,17 +61,37 @@ export async function dispatchPush(
     failed: 0,
     invalidToken: 0,
   };
+  // Tipo derivado do payload de navegação (conjunto controlado), nunca do token.
+  const messageType = safeLabel(messages[0]?.data?.type, "unknown");
   if (messages.length === 0) {
     return summary;
   }
+
+  const startedAt = process.hrtime.bigint();
+  const observeDuration = () =>
+    pushDuration.observe(
+      { message_type: messageType },
+      Number(process.hrtime.bigint() - startedAt) / 1e9,
+    );
 
   let results;
   try {
     results = await ctx.pushProvider.send(messages);
   } catch (error) {
     summary.failed = messages.length;
+    observeDuration();
+    pushDispatchTotal.inc({ message_type: messageType, result: "failed" });
+    pushMessagesTotal.inc({ message_type: messageType, result: "failed" }, messages.length);
+    pushFailuresTotal.inc({ message_type: messageType }, messages.length);
     ctx.log.error(
-      { err: error, ...logContext, recipients: messages.length, provider: ctx.pushProvider.name },
+      {
+        event: "push_dispatch_failed",
+        err: error,
+        ...logContext,
+        messageType,
+        recipients: messages.length,
+        provider: ctx.pushProvider.name,
+      },
       `Falha ao enviar push: ${description}`,
     );
     return summary;
@@ -88,6 +116,30 @@ export async function dispatchPush(
       .where(inArray(pushDevices.token, invalidTokens));
   }
 
-  ctx.log.info({ ...logContext, ...summary }, `Push processado: ${description}`);
+  // Métricas (Phase 9): contagens por tipo e resultado — nunca o token.
+  observeDuration();
+  pushDispatchTotal.inc({
+    message_type: messageType,
+    result: summary.failed > 0 ? "partial" : "ok",
+  });
+  if (summary.sent > 0) {
+    pushMessagesTotal.inc({ message_type: messageType, result: "sent" }, summary.sent);
+  }
+  if (summary.failed > 0) {
+    pushMessagesTotal.inc({ message_type: messageType, result: "failed" }, summary.failed);
+    pushFailuresTotal.inc({ message_type: messageType }, summary.failed);
+  }
+  if (summary.invalidToken > 0) {
+    pushMessagesTotal.inc(
+      { message_type: messageType, result: "invalid_token" },
+      summary.invalidToken,
+    );
+    pushInvalidTokensTotal.inc({ message_type: messageType }, summary.invalidToken);
+  }
+
+  ctx.log.info(
+    { event: "push_dispatch_completed", ...logContext, messageType, ...summary },
+    `Push processado: ${description}`,
+  );
   return summary;
 }
