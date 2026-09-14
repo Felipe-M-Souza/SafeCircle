@@ -1,6 +1,13 @@
 import { useState } from "react";
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, } from "react-native";
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";

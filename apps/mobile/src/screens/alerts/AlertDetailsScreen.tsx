@@ -7,7 +7,10 @@ import { Screen } from "../../components/Screen";
 import { getLiveLocationController } from "../../live-location/LiveLocationController";
 import { strings, translateApiError } from "../../i18n/pt-BR";
 import {
-  type AcknowledgementType, type AlertAcknowledgement, type EmergencyAlert } from "../../lib/api";
+  type AcknowledgementType,
+  type AlertAcknowledgement,
+  type EmergencyAlert,
+} from "../../lib/api";
 import { formatTime } from "../../lib/time";
 import { isLiveLocationEvent, type RealtimeEvent } from "../../realtime/events";
 import { useRealtimeEvents } from "../../realtime/RealtimeProvider";
