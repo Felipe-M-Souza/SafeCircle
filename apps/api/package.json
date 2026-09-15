@@ -21,10 +21,12 @@
     "outbox:status": "tsx src/scripts/outbox-cli.ts status",
     "outbox:list-dead": "tsx src/scripts/outbox-cli.ts list-dead",
     "outbox:retry-dead": "tsx src/scripts/outbox-cli.ts retry-dead",
-    "outbox:cleanup": "tsx src/scripts/outbox-cli.ts cleanup"
+    "outbox:cleanup": "tsx src/scripts/outbox-cli.ts cleanup",
+    "privacy:cleanup": "tsx src/scripts/privacy-cleanup.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
     "@fastify/jwt": "^10.2.2",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/websocket": "11.3.0",
@@ -39,11 +41,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
-    "@types/ws": "8.5.13",
+    "@types/ws": "8.18.1",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.13",
     "typescript": "~6.0.3",
     "vitest": "^5.0.0",
-    "ws": "8.18.0"
+    "ws": "8.21.3"
   }
 }

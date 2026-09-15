@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Config } from "../../config/env.js";
-import { authRateLimit } from "../../plugins/rate-limit.js";
+import { invitationRateLimit } from "../../plugins/rate-limit.js";
 import { errors, type AppError } from "../../shared/errors.js";
 import {
   changeRoleSchema,
@@ -126,7 +126,7 @@ export async function groupsRoutes(
 
   app.post(
     "/groups/:groupId/invitations",
-    { config: { rateLimit: authRateLimit(appConfig.nodeEnv) } },
+    { config: { rateLimit: invitationRateLimit(appConfig.rateLimitProfile) } },
     async (request, reply) => {
       const groupId = parseUuid(
         (request.params as { groupId: string }).groupId,

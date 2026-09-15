@@ -26,6 +26,8 @@ import type { RealtimeEvent } from "./events.js";
 export const REALTIME_CLOSE_CODES = {
   SERVER_SHUTDOWN: 1001,
   TOKEN_EXPIRED: 4401,
+  /** Sessão revogada (logout em outro aparelho, reuso de refresh, limite). */
+  SESSION_REVOKED: 4403,
   HEARTBEAT_TIMEOUT: 4408,
   BACKPRESSURE: 4413,
   TOO_MANY_CONNECTIONS: 4429,
@@ -41,11 +43,14 @@ export interface RealtimeHubOptions {
 export interface RegisterOptions {
   /** Instante de expiração do access token: a conexão é fechada nesse momento. */
   expiresAt?: Date;
+  /** Sessão que autenticou o handshake (Phase 11): revogá-la fecha a conexão. */
+  sessionId?: string;
 }
 
 interface Connection {
   id: string;
   userId: string;
+  sessionId: string | null;
   socket: WebSocket;
   alive: boolean;
   expiryTimer: ReturnType<typeof setTimeout> | null;
@@ -72,7 +77,14 @@ export class RealtimeHub {
   /** Registra uma conexão autenticada e devolve o connectionId. */
   register(userId: string, socket: WebSocket, options: RegisterOptions = {}): string {
     const id = randomUUID();
-    const connection: Connection = { id, userId, socket, alive: true, expiryTimer: null };
+    const connection: Connection = {
+      id,
+      userId,
+      sessionId: options.sessionId ?? null,
+      socket,
+      alive: true,
+      expiryTimer: null,
+    };
 
     // Limite por usuário: fecha a conexão mais antiga (evita zumbis bloqueando novas).
     const existing = this.byUser.get(userId);
@@ -174,6 +186,22 @@ export class RealtimeHub {
       return this.connections.size;
     }
     return this.byUser.get(userId)?.size ?? 0;
+  }
+
+  /**
+   * Fecha todas as conexões autenticadas por uma sessão (Phase 11). Chamado
+   * quando a sessão é revogada: um token roubado não continua ouvindo eventos.
+   * Devolve quantas conexões foram fechadas.
+   */
+  closeBySession(sessionId: string, code: number, reason: string): number {
+    let closed = 0;
+    for (const [id, connection] of [...this.connections]) {
+      if (connection.sessionId === sessionId) {
+        this.close(id, code, reason);
+        closed += 1;
+      }
+    }
+    return closed;
   }
 
   close(connectionId: string, code: number, reason: string): void {

@@ -1,17 +1,20 @@
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import fastifyCors from "@fastify/cors";
-import { loadEnv, type Config } from "./config/env.js";
+import { loadEnv, type Config, type RateLimitProfile } from "./config/env.js";
 import { authPlugin } from "./plugins/auth.js";
 import { auditPlugin } from "./plugins/audit.js";
 import { backgroundTasksPlugin } from "./plugins/background-tasks.js";
 import { databasePlugin } from "./plugins/database.js";
 import { errorHandlerPlugin } from "./plugins/error-handler.js";
+import { httpHardeningPlugin } from "./plugins/http-hardening.js";
 import { observabilityPlugin } from "./plugins/observability.js";
 import { rateLimitPlugin } from "./plugins/rate-limit.js";
 import { realtimePlugin } from "./plugins/realtime.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { metricsRoutes } from "./modules/health/metrics.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { sessionsRoutes } from "./modules/auth/sessions.routes.js";
+import { LoginThrottle, type LoginThrottleOptions } from "./modules/auth/login-throttle.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { groupsRoutes } from "./modules/groups/groups.routes.js";
 import { meInvitationsRoutes } from "./modules/groups/me-invitations.routes.js";
@@ -21,16 +24,25 @@ import { checkinsRoutes } from "./modules/checkins/checkins.routes.js";
 import { checkinSchedulerPlugin } from "./plugins/checkin-scheduler.js";
 import { journeysRoutes } from "./modules/journeys/journeys.routes.js";
 import { journeySchedulerPlugin } from "./plugins/journey-scheduler.js";
+import { privacyRoutes } from "./modules/privacy/privacy.routes.js";
 import { outboxPlugin } from "./plugins/outbox.js";
 import { REDACTED_LOG_PATHS, resolveRequestId } from "./observability/request-context.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
+import { createOriginPolicy } from "./security/origins.js";
 
 declare module "fastify" {
   interface FastifyInstance {
     pushProvider: PushProvider;
   }
 }
+
+/**
+ * Limite global do corpo (Phase 11): 256 KiB. O maior payload legítimo da API
+ * (um ponto de localização, um convite, um registro) tem poucas centenas de
+ * bytes; acima disso é erro ou abuso, e a resposta é 413 sem crash.
+ */
+export const BODY_LIMIT_BYTES = 256 * 1024;
 
 export interface BuildAppOptions {
   logger?: boolean;
@@ -62,6 +74,16 @@ export interface BuildAppOptions {
    * Só é aceita em NODE_ENV=test — nunca existe em produção.
    */
   exposeTestErrorRoute?: boolean;
+  /** Phase 11: usa os tetos reais de rate limit mesmo em NODE_ENV=test. */
+  rateLimitProfile?: RateLimitProfile;
+  /** Phase 11: sobrescreve a allow-list de origens web (testes). */
+  corsAllowedOrigins?: string[];
+  /** Phase 11: força a validação estrita de Origin (testes). */
+  strictOrigins?: boolean;
+  /** Phase 11: sobrescreve HSTS_ENABLED (testes). */
+  hstsEnabled?: boolean;
+  /** Phase 11: parâmetros do freio por conta no login (testes). */
+  loginThrottle?: LoginThrottleOptions;
 }
 
 /**
@@ -79,11 +101,16 @@ function createLogController(): LogController {
   return new LogController({ disableRequestLogging: true, requestIdLogLabel: "requestId" });
 }
 
+/**
+ * CORS (Phase 11): allow-list explícita quando estrito; reflexão da origem só
+ * em dev/test sem lista, para o app web local. Nunca `*` — e como a API usa
+ * Bearer, não há cookies nem `credentials`. Requisição sem `Origin` (app
+ * nativo) não passa por CORS: a autenticação decide.
+ */
 function corsOptions(config: Config) {
-  if (config.nodeEnv === "production") {
-    return { origin: config.corsOrigins ?? false };
+  if (config.strictOrigins) {
+    return { origin: config.corsAllowedOrigins.length > 0 ? config.corsAllowedOrigins : false };
   }
-  // Em dev/test refletimos a origem para facilitar o app web (localhost:8081).
   return { origin: true };
 }
 
@@ -97,14 +124,33 @@ function corsOptions(config: Config) {
  * (aceitando `X-Request-Id` do cliente apenas se for UUID válido), que é
  * devolvido no header, aparece em todo log da requisição e em toda resposta de
  * erro. A redaction do logger é centralizada em `observability/request-context`.
+ *
+ * Hardening (Phase 11): cabeçalhos de segurança, limite de corpo, CORS por
+ * allow-list, `trustProxy` explícito, validação de sessão por requisição.
  */
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
-  const config = loadEnv();
+  const base = loadEnv();
+  const corsAllowedOrigins = options.corsAllowedOrigins ?? base.corsAllowedOrigins;
+  const config: Config = {
+    ...base,
+    rateLimitProfile: options.rateLimitProfile ?? base.rateLimitProfile,
+    corsAllowedOrigins,
+    strictOrigins:
+      options.strictOrigins ?? (base.nodeEnv === "production" || corsAllowedOrigins.length > 0),
+    hstsEnabled: options.hstsEnabled ?? base.hstsEnabled,
+  };
 
   const app = Fastify({
     // Request ID: header do cliente quando é UUID válido, senão um novo.
     genReqId: (request) => resolveRequestId(request.headers["x-request-id"]),
     logController: createLogController(),
+    bodyLimit: BODY_LIMIT_BYTES,
+    // `X-Forwarded-*` só é confiável atrás do proxy configurado; padrão: não.
+    // Número = quantidade de saltos confiáveis a partir da borda.
+    trustProxy:
+      typeof config.trustProxy === "number"
+        ? (_address: string, hop: number) => hop < (config.trustProxy as number)
+        : config.trustProxy,
     logger: options.logger
       ? {
           // Nunca registrar dados sensíveis (README §15): senhas, tokens, headers,
@@ -114,8 +160,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : false,
   });
 
+  // Só JSON entra (Phase 11): o parser padrão de `text/plain` do Fastify é
+  // removido, então qualquer outro Content-Type recebe 415 antes de qualquer
+  // handler. Rotas nunca recebem corpo que não pediram.
+  app.removeContentTypeParser("text/plain");
+
   await app.register(errorHandlerPlugin);
   await app.register(observabilityPlugin, {});
+  await app.register(httpHardeningPlugin, { hstsEnabled: config.hstsEnabled });
   await app.register(fastifyCors, corsOptions(config));
   await app.register(rateLimitPlugin);
   await app.register(backgroundTasksPlugin);
@@ -149,9 +201,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(auditPlugin);
     // Realtime (Phase 5) depende de auth + banco; registrado antes das rotas
     // que publicam eventos.
-    await app.register(realtimePlugin);
-    await app.register(authRoutes, { appConfig: config });
+    await app.register(realtimePlugin, {
+      originPolicy: createOriginPolicy(config.corsAllowedOrigins, config.strictOrigins),
+      rateLimitProfile: config.rateLimitProfile,
+    });
+    // Freio por conta: em NODE_ENV=test é praticamente desligado, a menos que
+    // o teste peça parâmetros reais.
+    const loginThrottle = new LoginThrottle(
+      options.loginThrottle ?? (config.nodeEnv === "test" ? { maxFailures: 1_000_000 } : undefined),
+    );
+    await app.register(authRoutes, { appConfig: config, loginThrottle });
+    await app.register(sessionsRoutes);
     await app.register(usersRoutes, { appConfig: config });
+    await app.register(privacyRoutes, { appConfig: config });
     await app.register(groupsRoutes, { appConfig: config });
     await app.register(meInvitationsRoutes);
     await app.register(alertsRoutes);

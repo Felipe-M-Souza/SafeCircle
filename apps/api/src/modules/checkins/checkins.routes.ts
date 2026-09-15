@@ -48,7 +48,7 @@ export async function checkinsRoutes(
 
   app.post(
     "/checkins",
-    { config: { rateLimit: checkinRateLimit(options.appConfig.nodeEnv) } },
+    { config: { rateLimit: checkinRateLimit(options.appConfig.rateLimitProfile) } },
     async (request, reply) => {
       const input = createCheckinSchema.parse(request.body);
       const idempotencyKey = parseIdempotencyKey(request.headers["idempotency-key"]);

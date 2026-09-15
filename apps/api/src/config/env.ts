@@ -1,24 +1,69 @@
 import { z } from "zod";
+import { isValidOrigin, parseOriginList, splitOriginList } from "../security/origins.js";
 
 /**
  * Validação centralizada das variáveis de ambiente da API.
  * Tudo que é entrada não confiável (inclusive o ambiente) deve ser validado.
+ *
+ * Phase 11: em produção a configuração é **fail-fast**. Subir com segredo
+ * fraco, sem banco, com CORS inválido ou com métricas abertas é pior do que
+ * não subir — o processo recusa iniciar e diz exatamente qual variável.
+ * Nenhum valor de segredo aparece nas mensagens.
  */
 
 // Segredo explícito de desenvolvimento/testes. NUNCA usar em produção:
 // em produção o segredo é obrigatório e validado abaixo.
 const DEV_JWT_ACCESS_SECRET = "dev-only-insecure-jwt-access-secret-change-me";
 
+export const JWT_SECRET_MIN_LENGTH = 32;
+
+/** Trechos que denunciam placeholder copiado do `.env.example` ou de tutorial. */
+const PLACEHOLDER_FRAGMENTS = [
+  "changeme",
+  "change-me",
+  "change_me",
+  "placeholder",
+  "example",
+  "insecure",
+  "dev-only",
+  "secret123",
+  "password",
+  "your-secret",
+  "todo",
+];
+
+/**
+ * Segredo fraco: curto, igual ao de desenvolvimento, com pouca variedade de
+ * caracteres ou contendo um placeholder óbvio. Heurística, não prova de
+ * entropia — o suficiente para barrar o erro operacional comum.
+ */
+export function isWeakSecret(secret: string): boolean {
+  if (secret.length < JWT_SECRET_MIN_LENGTH) return true;
+  if (secret === DEV_JWT_ACCESS_SECRET) return true;
+  if (new Set(secret).size < 8) return true;
+  const lower = secret.toLowerCase();
+  return PLACEHOLDER_FRAGMENTS.some((fragment) => lower.includes(fragment));
+}
+
 // Trata strings vazias (comuns em `.env.example`) como "não definidas".
 const emptyToUndefined = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? undefined : value;
+
+const booleanFlag = (defaultValue: "true" | "false") =>
+  z.preprocess(
+    emptyToUndefined,
+    z
+      .enum(["true", "false", "1", "0"])
+      .default(defaultValue)
+      .transform((value) => value === "true" || value === "1"),
+  );
 
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().positive().default(3000),
     HOST: z.string().default("0.0.0.0"),
-    // Opcional: a API sobe e responde /health mesmo sem banco configurado.
+    // Opcional fora de produção: a API sobe e responde /health mesmo sem banco.
     DATABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
 
     // Autenticação (Phase 1)
@@ -26,12 +71,18 @@ const envSchema = z
     JWT_ACCESS_TTL: z.preprocess(emptyToUndefined, z.string().min(1).default("15m")),
     REFRESH_TOKEN_TTL_DAYS: z.preprocess(
       emptyToUndefined,
-      z.coerce.number().int().positive().default(30),
+      z.coerce.number().int().positive().max(365).default(30),
     ),
 
-    // Origens permitidas para CORS em produção (lista separada por vírgula).
-    // Em dev/test o CORS reflete a origem da requisição para facilitar o app web.
+    // Origens web permitidas (Phase 11): allow-list explícita, sem wildcard.
+    // `CORS_ORIGINS` é o nome antigo (Phase 1), aceito por compatibilidade.
+    CORS_ALLOWED_ORIGINS: z.preprocess(emptyToUndefined, z.string().optional()),
     CORS_ORIGINS: z.preprocess(emptyToUndefined, z.string().optional()),
+
+    // HSTS só onde o HTTPS externo é garantido pelo ingress/proxy.
+    HSTS_ENABLED: booleanFlag("false"),
+    // `false` (padrão), `true` (todos os proxies) ou número de saltos confiáveis.
+    TRUST_PROXY: z.preprocess(emptyToUndefined, z.string().default("false")),
 
     // Notificações push (Phase 4): token de acesso opcional da Expo Push API.
     // Segredo do backend — NUNCA versionar nem expor ao app.
@@ -39,13 +90,7 @@ const envSchema = z
 
     // Observabilidade (Phase 9).
     // /metrics é desligado por padrão: só existe quando explicitamente habilitado.
-    METRICS_ENABLED: z.preprocess(
-      emptyToUndefined,
-      z
-        .enum(["true", "false", "1", "0"])
-        .default("false")
-        .transform((value) => value === "true" || value === "1"),
-    ),
+    METRICS_ENABLED: booleanFlag("false"),
     // Bearer exigido em /metrics quando definido. Segredo — NUNCA versionar.
     METRICS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(16).optional()),
     // Identificação da build (valores públicos, não são secrets).
@@ -54,13 +99,7 @@ const envSchema = z
 
     // Outbox transacional (Phase 10). Limites impostos aqui para que uma
     // configuração errada não vire busy loop nem lote gigante em produção.
-    OUTBOX_ENABLED: z.preprocess(
-      emptyToUndefined,
-      z
-        .enum(["true", "false", "1", "0"])
-        .default("true")
-        .transform((value) => value === "true" || value === "1"),
-    ),
+    OUTBOX_ENABLED: booleanFlag("true"),
     OUTBOX_POLL_INTERVAL_MS: z.preprocess(
       emptyToUndefined,
       z.coerce.number().int().min(100).max(60_000).default(500),
@@ -79,16 +118,57 @@ const envSchema = z
     ),
   })
   .superRefine((value, ctx) => {
-    if (value.NODE_ENV === "production") {
-      if (!value.JWT_ACCESS_SECRET || value.JWT_ACCESS_SECRET.length < 32) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["JWT_ACCESS_SECRET"],
-          message: "JWT_ACCESS_SECRET é obrigatório em produção e deve ter ao menos 32 caracteres.",
-        });
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+
+    // Origens: válidas em qualquer ambiente (erro de digitação não pode virar
+    // "nenhuma origem funciona" só em produção). Validamos a entrada BRUTA:
+    // a normalização descartaria um path digitado por engano.
+    const origins = splitOriginList(value.CORS_ALLOWED_ORIGINS ?? value.CORS_ORIGINS);
+    for (const origin of origins) {
+      if (!isValidOrigin(origin)) {
+        issue(
+          value.CORS_ALLOWED_ORIGINS ? "CORS_ALLOWED_ORIGINS" : "CORS_ORIGINS",
+          "Cada origem deve ser `https://host[:porta]` (sem path nem wildcard).",
+        );
+        break;
       }
     }
+
+    const trust = value.TRUST_PROXY.trim().toLowerCase();
+    if (trust !== "true" && trust !== "false" && !/^\d{1,2}$/.test(trust)) {
+      issue("TRUST_PROXY", "Use `true`, `false` ou o número de proxies confiáveis.");
+    }
+
+    if (value.NODE_ENV !== "production") return;
+
+    // --- Produção: fail-fast ---
+    if (!value.JWT_ACCESS_SECRET) {
+      issue("JWT_ACCESS_SECRET", "JWT_ACCESS_SECRET é obrigatório em produção.");
+    } else if (isWeakSecret(value.JWT_ACCESS_SECRET)) {
+      issue(
+        "JWT_ACCESS_SECRET",
+        `JWT_ACCESS_SECRET fraco: use ao menos ${JWT_SECRET_MIN_LENGTH} caracteres aleatórios (nunca o valor de desenvolvimento nem placeholder).`,
+      );
+    }
+    if (!value.DATABASE_URL) {
+      issue("DATABASE_URL", "DATABASE_URL é obrigatória em produção.");
+    }
+    if (!value.OUTBOX_ENABLED) {
+      issue(
+        "OUTBOX_ENABLED",
+        "Em produção a outbox precisa estar ligada: sem worker, push e auditoria ficam pendentes para sempre.",
+      );
+    }
+    if (value.METRICS_ENABLED && !value.METRICS_TOKEN) {
+      issue(
+        "METRICS_TOKEN",
+        "Em produção /metrics só pode ser habilitado com METRICS_TOKEN definido.",
+      );
+    }
   });
+
+export type RateLimitProfile = "production" | "relaxed";
 
 export interface Config {
   nodeEnv: "development" | "test" | "production";
@@ -98,7 +178,17 @@ export interface Config {
   jwtAccessSecret: string;
   jwtAccessTtl: string;
   refreshTokenTtlDays: number;
-  corsOrigins?: string[];
+  /** Origens web permitidas, normalizadas. Vazio = nenhuma origem web. */
+  corsAllowedOrigins: string[];
+  /**
+   * Estrito: só a allow-list passa (CORS e WebSocket). Produção é sempre
+   * estrita; dev/test relaxam para o app web local, a menos que a lista exista.
+   */
+  strictOrigins: boolean;
+  hstsEnabled: boolean;
+  trustProxy: boolean | number;
+  /** Tetos de rate limit: relaxados em NODE_ENV=test, reais nos demais. */
+  rateLimitProfile: RateLimitProfile;
   expoAccessToken?: string;
   metricsEnabled: boolean;
   metricsToken?: string;
@@ -113,8 +203,14 @@ export interface Config {
 
 let cachedConfig: Config | null = null;
 
+/**
+ * Lê e valida a configuração. `source` permite validar um ambiente arbitrário
+ * (testes de fail-fast) sem tocar em `process.env`; nesse caso o resultado não
+ * é cacheado.
+ */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
-  if (cachedConfig) {
+  const fromProcess = source === process.env;
+  if (fromProcess && cachedConfig) {
     return cachedConfig;
   }
 
@@ -127,8 +223,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
   }
 
   const env = parsed.data;
+  const corsAllowedOrigins = parseOriginList(env.CORS_ALLOWED_ORIGINS ?? env.CORS_ORIGINS);
+  const trust = env.TRUST_PROXY.trim().toLowerCase();
 
-  cachedConfig = {
+  const config: Config = {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
     host: env.HOST,
@@ -136,9 +234,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     jwtAccessSecret: env.JWT_ACCESS_SECRET ?? DEV_JWT_ACCESS_SECRET,
     jwtAccessTtl: env.JWT_ACCESS_TTL,
     refreshTokenTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
-    corsOrigins: env.CORS_ORIGINS?.split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    corsAllowedOrigins,
+    strictOrigins: env.NODE_ENV === "production" || corsAllowedOrigins.length > 0,
+    hstsEnabled: env.HSTS_ENABLED,
+    trustProxy: trust === "true" ? true : trust === "false" ? false : Number(trust),
+    rateLimitProfile: env.NODE_ENV === "test" ? "relaxed" : "production",
     expoAccessToken: env.EXPO_ACCESS_TOKEN,
     metricsEnabled: env.METRICS_ENABLED,
     metricsToken: env.METRICS_TOKEN,
@@ -151,7 +251,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     outboxLeaseMs: env.OUTBOX_LEASE_MS,
   };
 
-  return cachedConfig;
+  if (fromProcess) {
+    cachedConfig = config;
+  }
+  return config;
 }
 
 /** Apenas para testes: limpa o cache de configuração. */
