@@ -38,9 +38,10 @@ export function connectRealtime(
   baseWsUrl: string,
   accessToken?: string,
   path = "/realtime",
+  extraHeaders: Record<string, string> = {},
 ): Promise<RealtimeTestClient> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...extraHeaders };
     if (accessToken !== undefined) {
       headers.Authorization = `Bearer ${accessToken}`;
     }

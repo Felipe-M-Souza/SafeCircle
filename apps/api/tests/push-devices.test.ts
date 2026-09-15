@@ -136,14 +136,24 @@ describe("POST /me/push-devices", () => {
     }
   });
 
-  it("body vazio ou não objeto → 400 sem erro interno", async () => {
-    const res = await app.inject({
+  it("body não JSON → 415; JSON que não é objeto → 400; nunca erro interno", async () => {
+    // Phase 11: content-type que a API não aceita é recusado antes do parser.
+    const text = await app.inject({
       method: "POST",
       url: "/me/push-devices",
       headers: authHeaders(user),
       payload: "texto",
     });
-    expect(res.statusCode).toBe(400);
+    expect(text.statusCode).toBe(415);
+    expect(text.json().code).toBe("UNSUPPORTED_MEDIA_TYPE");
+
+    const notObject = await app.inject({
+      method: "POST",
+      url: "/me/push-devices",
+      headers: { ...authHeaders(user), "content-type": "application/json" },
+      payload: JSON.stringify("texto"),
+    });
+    expect(notObject.statusCode).toBe(400);
   });
 
   it("mesmo deviceId com token novo atualiza o registro (rotação) sem duplicar", async () => {

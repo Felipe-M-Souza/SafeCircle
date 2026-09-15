@@ -3,7 +3,13 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
 import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
-import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
+import {
+  authHeaders,
+  registerUser,
+  sessionIdOf,
+  signTestAccessToken,
+  type TestUser,
+} from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
 import { SYNTHETIC_LOCATION, createAlert, newIdempotencyKey, postAlert } from "./helpers/alerts.js";
 import {
@@ -58,7 +64,11 @@ describe("GET /realtime — conexão", () => {
     expect(await expectHandshakeRejected(wsUrl, "token-invalido")).toBe(401);
 
     const user = await registerUser(app);
-    const expired = app.jwt.sign({ sub: user.userId, sid: "sessao" }, { expiresIn: "-10s" });
+    const expired = signTestAccessToken(
+      app,
+      { sub: user.userId, sid: sessionIdOf(user) },
+      { expiresIn: "-10s" },
+    );
     expect(await expectHandshakeRejected(wsUrl, expired)).toBe(401);
     expect(app.realtimeHub.connectionCount()).toBe(0);
   });
@@ -73,7 +83,11 @@ describe("GET /realtime — conexão", () => {
 
   it("fecha a conexão quando o access token expira (4401) e permite reconectar com token novo", async () => {
     const user = await registerUser(app);
-    const shortLived = app.jwt.sign({ sub: user.userId, sid: "sessao" }, { expiresIn: "1s" });
+    const shortLived = signTestAccessToken(
+      app,
+      { sub: user.userId, sid: sessionIdOf(user) },
+      { expiresIn: "1s" },
+    );
     const client = await connectRealtime(wsUrl, shortLived);
     openClients.push(client);
 
