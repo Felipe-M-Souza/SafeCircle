@@ -61,10 +61,49 @@ export const authSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Phase 11: último uso (atualizado com folga, não a cada requisição) e o
+    // motivo da revogação — conjunto controlado em `auth.service.ts`.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedReason: text("revoked_reason"),
   },
   (table) => [
     uniqueIndex("auth_sessions_refresh_token_hash_unique").on(table.refreshTokenHash),
     index("auth_sessions_user_id_idx").on(table.userId),
+    // Sessões ativas por usuário (limite e listagem) e retenção.
+    index("auth_sessions_user_revoked_expires_idx").on(
+      table.userId,
+      table.revokedAt,
+      table.expiresAt,
+    ),
+  ],
+);
+
+/**
+ * Histórico de refresh tokens já rotacionados (Phase 11).
+ *
+ * Guarda **apenas o hash** dos tokens antigos de cada sessão, por tempo
+ * limitado. Serve a um único propósito: se um token já rotacionado reaparecer,
+ * alguém está reutilizando uma credencial que deveria ter morrido — sinal de
+ * roubo ou replay. A sessão inteira é revogada nesse caso.
+ */
+export const authRefreshTokenHistory = pgTable(
+  "auth_refresh_token_history",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => authSessions.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true }).notNull().defaultNow(),
+    // Depois disso o hash é apagado: não guardamos credencial morta para sempre.
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("auth_refresh_token_history_token_hash_unique").on(table.tokenHash),
+    index("auth_refresh_token_history_session_id_idx").on(table.sessionId),
+    index("auth_refresh_token_history_expires_at_idx").on(table.expiresAt),
   ],
 );
 
@@ -833,6 +872,7 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type AuthSession = typeof authSessions.$inferSelect;
 export type NewAuthSession = typeof authSessions.$inferInsert;
+export type AuthRefreshTokenHistory = typeof authRefreshTokenHistory.$inferSelect;
 export type TrustedGroup = typeof trustedGroups.$inferSelect;
 export type GroupMembership = typeof groupMemberships.$inferSelect;
 export type GroupInvitation = typeof groupInvitations.$inferSelect;

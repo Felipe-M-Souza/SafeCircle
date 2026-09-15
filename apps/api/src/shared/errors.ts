@@ -16,6 +16,11 @@ export type ErrorCode =
   | "INTERNAL_ERROR"
   // Rota inexistente (Phase 9): mesmo formato dos demais erros.
   | "NOT_FOUND"
+  // Phase 11 — hardening HTTP e sessões
+  | "PAYLOAD_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "ORIGIN_NOT_ALLOWED"
+  | "SESSION_NOT_FOUND"
   // Phase 2 — Grupos de Confiança
   | "GROUP_NOT_FOUND"
   | "GROUP_NAME_INVALID"
@@ -86,6 +91,16 @@ export const errors = {
   invalidRefreshToken: () => new AppError("INVALID_REFRESH_TOKEN", 401, "Refresh token inválido."),
   sessionExpired: () => new AppError("SESSION_EXPIRED", 401, "Sessão expirada."),
   sessionRevoked: () => new AppError("SESSION_REVOKED", 401, "Sessão revogada."),
+
+  // Phase 11 — hardening HTTP e sessões
+  rateLimited: () =>
+    new AppError("RATE_LIMITED", 429, "Muitas requisições. Tente novamente em instantes."),
+  payloadTooLarge: () =>
+    new AppError("PAYLOAD_TOO_LARGE", 413, "Corpo da requisição excede o limite permitido."),
+  unsupportedMediaType: () =>
+    new AppError("UNSUPPORTED_MEDIA_TYPE", 415, "Tipo de conteúdo não suportado."),
+  originNotAllowed: () => new AppError("ORIGIN_NOT_ALLOWED", 403, "Origem não permitida."),
+  sessionNotFound: () => new AppError("SESSION_NOT_FOUND", 404, "Sessão não encontrada."),
 
   // Phase 2 — Grupos de Confiança
   groupNotFound: () => new AppError("GROUP_NOT_FOUND", 404, "Grupo não encontrado."),
