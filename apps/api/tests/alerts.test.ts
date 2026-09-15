@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
 import { createCleaner } from "./helpers/test-db.js";
+import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
 import { SYNTHETIC_LOCATION, createAlert, newIdempotencyKey, postAlert } from "./helpers/alerts.js";
@@ -124,8 +125,9 @@ describe("POST /alerts — criação", () => {
     });
     expect(badLat.statusCode).toBe(400);
     expect(badLat.json().code).toBe("VALIDATION_ERROR");
-    // Mensagem de erro não ecoa coordenadas.
-    expect(JSON.stringify(badLat.json())).not.toContain("91");
+    // Mensagem de erro não ecoa coordenadas. O `requestId` fica de fora da
+    // comparação: é um UUID aleatório e pode conter "91" por acaso.
+    expect(JSON.stringify(errorBodyWithoutRequestId(badLat))).not.toContain("91");
 
     const badDate = await postAlert(app, owner, {
       groupId,
