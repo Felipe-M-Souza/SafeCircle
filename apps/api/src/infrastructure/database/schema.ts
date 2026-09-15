@@ -3,6 +3,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -596,15 +597,89 @@ export const auditEvents = pgTable(
     outcome: text("outcome").notNull(),
     requestId: uuid("request_id"),
     metadata: jsonb("metadata").$type<Record<string, string | number | boolean>>(),
+    /**
+     * Evento da outbox que materializou esta linha (Phase 10).
+     * UNIQUE: reprocessar o mesmo evento (entrega at-least-once) não cria uma
+     * segunda linha de auditoria. Nulo nas linhas anteriores à Phase 10.
+     */
+    sourceOutboxEventId: uuid("source_outbox_event_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("audit_events_source_outbox_event_unique").on(table.sourceOutboxEventId),
     // Retenção e consultas por janela de tempo.
     index("audit_events_created_at_idx").on(table.createdAt),
     index("audit_events_event_type_created_idx").on(table.eventType, table.createdAt),
     index("audit_events_actor_created_idx").on(table.actorUserId, table.createdAt),
     index("audit_events_target_idx").on(table.targetType, table.targetId),
     index("audit_events_group_created_idx").on(table.groupId, table.createdAt),
+  ],
+);
+
+// ------------------------------------------------------------------
+// Phase 10 — Outbox Transacional
+// ------------------------------------------------------------------
+
+export const outboxStatus = pgEnum("outbox_status", ["PENDING", "PROCESSING", "PROCESSED", "DEAD"]);
+
+/**
+ * Outbox transacional (Phase 10).
+ *
+ * Resolve a janela de perda pós-commit: o efeito (push, realtime, auditoria) é
+ * inserido aqui **na mesma transação** da mudança de domínio. Se o processo
+ * morrer logo após o COMMIT, o evento continua no banco e o worker o processa
+ * depois — em vez de simplesmente sumir.
+ *
+ * Semântica: **at-least-once**. O worker pode reprocessar um evento cujo efeito
+ * externo já ocorreu (crash entre o envio e o UPDATE para PROCESSED), então os
+ * handlers precisam tolerar repetição. Exactly-once externo NÃO é garantido.
+ *
+ * Privacidade: `payload` guarda apenas IDs e dados mínimos versionados — nunca
+ * token, coordenada, credencial, corpo de requisição ou resposta de provedor.
+ * `lastErrorCode` é um código controlado, nunca stack ou mensagem crua.
+ */
+export const outboxEvents = pgTable(
+  "outbox_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    // Conjunto controlado no código (OutboxEventType).
+    eventType: text("event_type").notNull(),
+    aggregateType: text("aggregate_type").notNull(),
+    aggregateId: uuid("aggregate_id"),
+    // Sem FK: apagar o grupo não pode travar nem apagar o efeito pendente.
+    groupId: uuid("group_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: outboxStatus("status").notNull().default("PENDING"),
+    // Quando o evento fica elegível (usado pelo backoff dos retries).
+    availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull(),
+    // Lease: PROCESSING com lockedAt antigo é recuperável (worker morto).
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    // Nulo = não expira (auditoria). Realtime/push expiram para não entregar
+    // notificação antiga depois de um outage longo.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    requestId: uuid("request_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Claim: PENDING elegíveis, mais antigos primeiro.
+    index("outbox_events_claim_idx").on(table.status, table.availableAt),
+    // Lease recovery: PROCESSING com lock vencido.
+    index("outbox_events_lease_idx").on(table.status, table.lockedAt),
+    // Backlog e idade do mais antigo pendente.
+    index("outbox_events_status_created_idx").on(table.status, table.createdAt),
+    index("outbox_events_event_type_idx").on(table.eventType),
+    // Retenção.
+    index("outbox_events_processed_at_idx").on(table.processedAt),
+    index("outbox_events_dead_lettered_at_idx").on(table.deadLetteredAt),
   ],
 );
 
@@ -781,4 +856,7 @@ export type JourneyStatus = (typeof journeyStatus.enumValues)[number];
 export type JourneyLocationSession = typeof journeyLocationSessions.$inferSelect;
 export type JourneyLocationUpdate = typeof journeyLocationUpdates.$inferSelect;
 export type AuditEvent = typeof auditEvents.$inferSelect;
+export type OutboxEvent = typeof outboxEvents.$inferSelect;
+export type NewOutboxEvent = typeof outboxEvents.$inferInsert;
+export type OutboxStatus = (typeof outboxStatus.enumValues)[number];
 export type NewAuditEvent = typeof auditEvents.$inferInsert;

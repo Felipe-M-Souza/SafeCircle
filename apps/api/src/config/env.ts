@@ -51,6 +51,32 @@ const envSchema = z
     // Identificação da build (valores públicos, não são secrets).
     APP_VERSION: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
     GIT_SHA: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
+
+    // Outbox transacional (Phase 10). Limites impostos aqui para que uma
+    // configuração errada não vire busy loop nem lote gigante em produção.
+    OUTBOX_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(["true", "false", "1", "0"])
+        .default("true")
+        .transform((value) => value === "true" || value === "1"),
+    ),
+    OUTBOX_POLL_INTERVAL_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(100).max(60_000).default(500),
+    ),
+    OUTBOX_BATCH_SIZE: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1).max(500).default(50),
+    ),
+    OUTBOX_CONCURRENCY: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1).max(50).default(5),
+    ),
+    OUTBOX_LEASE_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(5_000).max(600_000).default(60_000),
+    ),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production") {
@@ -78,6 +104,11 @@ export interface Config {
   metricsToken?: string;
   appVersion?: string;
   gitSha?: string;
+  outboxEnabled: boolean;
+  outboxPollIntervalMs: number;
+  outboxBatchSize: number;
+  outboxConcurrency: number;
+  outboxLeaseMs: number;
 }
 
 let cachedConfig: Config | null = null;
@@ -113,6 +144,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     metricsToken: env.METRICS_TOKEN,
     appVersion: env.APP_VERSION,
     gitSha: env.GIT_SHA,
+    outboxEnabled: env.OUTBOX_ENABLED,
+    outboxPollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
+    outboxBatchSize: env.OUTBOX_BATCH_SIZE,
+    outboxConcurrency: env.OUTBOX_CONCURRENCY,
+    outboxLeaseMs: env.OUTBOX_LEASE_MS,
   };
 
   return cachedConfig;

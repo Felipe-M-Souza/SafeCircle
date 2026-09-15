@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { registerUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -83,8 +84,9 @@ describe("Métricas de realtime", () => {
       event_type: "CHECKIN_CREATED",
     });
     await createCheckin(app, owner, groupId, 30);
+    await drainOutbox(app);
     await client.waitForEvent((event) => event.type === "CHECKIN_CREATED");
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_realtime_events_published_total", {
@@ -106,7 +108,7 @@ describe("Métricas de realtime", () => {
     };
     try {
       await createCheckin(app, owner, groupId, 30);
-      await app.background.flush();
+      await drainOutbox(app);
     } finally {
       app.realtimeHub.send = original;
     }
@@ -129,7 +131,7 @@ describe("Métricas de tarefas em segundo plano", () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
     });
     expect(app.background.pendingCount()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_background_tasks_started_total", {
@@ -153,7 +155,7 @@ describe("Métricas de tarefas em segundo plano", () => {
     app.background.run("metrics-test-fail", async () => {
       throw new Error("falha sintética");
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_background_tasks_failed_total", {
@@ -182,7 +184,7 @@ describe("Métricas de push", () => {
     const checkin = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, checkin.id);
     await app.checkinScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
 
     const type = "SAFETY_CHECKIN_OVERDUE";
     expect(
@@ -212,7 +214,7 @@ describe("Métricas de push", () => {
     const first = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, first.id);
     await app.checkinScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
 
     const type = "SAFETY_CHECKIN_OVERDUE";
     expect(await metricValue("safecircle_push_invalid_tokens_total", { message_type: type })).toBe(
@@ -228,7 +230,7 @@ describe("Métricas de push", () => {
     const second = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, second.id);
     await app.journeyScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
 
     const journeyType = "SAFE_JOURNEY_OVERDUE";
     expect(
@@ -258,7 +260,7 @@ describe("Métricas de schedulers", () => {
     const checkin = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, checkin.id);
     expect(await app.checkinScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_scheduler_runs_total", { scheduler: "checkins", result: "ok" }),
@@ -283,7 +285,7 @@ describe("Métricas de schedulers", () => {
     const journey = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, journey.id);
     expect(await app.journeyScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_scheduler_items_processed_total", { scheduler: "journeys" }),
@@ -309,7 +311,7 @@ describe("Métricas de domínio", () => {
     const journey = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, journey.id);
     await app.journeyScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_checkin_transitions_total", { transition: "created" }),

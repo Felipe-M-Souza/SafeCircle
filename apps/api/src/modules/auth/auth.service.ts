@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { Database } from "../../infrastructure/database/client.js";
 import { authSessions, users } from "../../infrastructure/database/schema.js";
+import { enqueueAudit, type DomainActionOptions } from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { generateRefreshToken, hashRefreshToken, type AccessTokenClaims } from "./tokens.js";
@@ -62,21 +63,38 @@ function refreshExpiry(days: number): Date {
 async function createSession(
   ctx: AuthContext,
   userId: string,
+  audit?: { eventType: "AUDIT_AUTH_LOGIN_SUCCEEDED"; requestId?: string | null },
 ): Promise<{ sessionId: string; refreshToken: string }> {
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
-  const [session] = await ctx.db
-    .insert(authSessions)
-    .values({
-      userId,
-      refreshTokenHash,
-      expiresAt: refreshExpiry(ctx.refreshTokenTtlDays),
-    })
-    .returning({ id: authSessions.id });
 
-  if (!session) {
-    throw new Error("Falha ao criar sessão de autenticação.");
-  }
+  // Phase 10: sessão e auditoria no MESMO COMMIT — nem o refresh token nem o
+  // hash entram na outbox; o payload leva apenas IDs.
+  const session = await ctx.db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(authSessions)
+      .values({
+        userId,
+        refreshTokenHash,
+        expiresAt: refreshExpiry(ctx.refreshTokenTtlDays),
+      })
+      .returning({ id: authSessions.id });
+
+    if (!row) {
+      throw new Error("Falha ao criar sessão de autenticação.");
+    }
+    if (audit) {
+      await enqueueAudit(tx, audit.eventType, {
+        aggregateType: "USER",
+        aggregateId: userId,
+        actorUserId: userId,
+        targetType: "USER",
+        targetId: userId,
+        requestId: audit.requestId ?? null,
+      });
+    }
+    return row;
+  });
 
   return { sessionId: session.id, refreshToken };
 }
@@ -101,13 +119,19 @@ export async function registerUser(ctx: AuthContext, input: RegisterInput): Prom
     throw error;
   }
 
+  // Registro não emite AUDIT_AUTH_LOGIN_SUCCEEDED: o conjunto de eventos
+  // auditáveis da Phase 9 não inclui criação de conta.
   const { sessionId, refreshToken } = await createSession(ctx, user.id);
   const accessToken = ctx.signAccessToken({ sub: user.id, sid: sessionId });
 
   return { user, accessToken, refreshToken };
 }
 
-export async function loginUser(ctx: AuthContext, input: LoginInput): Promise<AuthResult> {
+export async function loginUser(
+  ctx: AuthContext,
+  input: LoginInput,
+  options: DomainActionOptions = {},
+): Promise<AuthResult> {
   const [user] = await ctx.db
     .select({
       id: users.id,
@@ -130,7 +154,10 @@ export async function loginUser(ctx: AuthContext, input: LoginInput): Promise<Au
     throw errors.invalidCredentials();
   }
 
-  const { sessionId, refreshToken } = await createSession(ctx, user.id);
+  const { sessionId, refreshToken } = await createSession(ctx, user.id, {
+    eventType: "AUDIT_AUTH_LOGIN_SUCCEEDED",
+    requestId: options.requestId ?? null,
+  });
   const accessToken = ctx.signAccessToken({ sub: user.id, sid: sessionId });
 
   return {
@@ -191,13 +218,32 @@ export async function refreshSession(
   return { accessToken, refreshToken: newRefreshToken };
 }
 
-export async function logout(ctx: AuthContext, rawRefreshToken: string): Promise<void> {
+export async function logout(
+  ctx: AuthContext,
+  rawRefreshToken: string,
+  options: DomainActionOptions = {},
+): Promise<void> {
   const currentHash = hashRefreshToken(rawRefreshToken);
   // Idempotente: revoga a sessão correspondente se ainda estiver ativa.
-  await ctx.db
-    .update(authSessions)
-    .set({ revokedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(authSessions.refreshTokenHash, currentHash), isNull(authSessions.revokedAt)));
+  await ctx.db.transaction(async (tx) => {
+    const revoked = await tx
+      .update(authSessions)
+      .set({ revokedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(authSessions.refreshTokenHash, currentHash), isNull(authSessions.revokedAt)))
+      .returning({ userId: authSessions.userId });
+
+    // Só audita quando havia sessão ativa: logout repetido não polui a trilha.
+    const userId = revoked[0]?.userId;
+    if (userId) {
+      await enqueueAudit(tx, "AUDIT_AUTH_LOGOUT", {
+        aggregateType: "SESSION",
+        aggregateId: userId,
+        actorUserId: userId,
+        targetType: "SESSION",
+        requestId: options.requestId ?? null,
+      });
+    }
+  });
 }
 
 export async function getMe(ctx: AuthContext, userId: string): Promise<PublicUser> {

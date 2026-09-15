@@ -6,6 +6,11 @@ import {
   users,
   type GroupRole,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueAudit,
+  enqueueMembershipChangedEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { findMembershipRole, requireGroupRole, requireMembership } from "./authorization.js";
 
@@ -36,6 +41,7 @@ export async function createGroup(
   db: Database,
   userId: string,
   name: string,
+  options: DomainActionOptions = {},
 ): Promise<GroupSummary> {
   return db.transaction(async (tx) => {
     const [group] = await tx.insert(trustedGroups).values({ name }).returning({
@@ -47,6 +53,16 @@ export async function createGroup(
       throw new Error("Falha ao criar grupo.");
     }
     await tx.insert(groupMemberships).values({ groupId: group.id, userId, role: "OWNER" });
+    // Phase 10: auditoria no MESMO COMMIT da criação.
+    await enqueueAudit(tx, "AUDIT_GROUP_CREATED", {
+      aggregateType: "GROUP",
+      aggregateId: group.id,
+      groupId: group.id,
+      actorUserId: userId,
+      targetType: "GROUP",
+      targetId: group.id,
+      requestId: options.requestId ?? null,
+    });
     return {
       id: group.id,
       name: group.name,
@@ -157,14 +173,30 @@ export async function listMembers(
   }));
 }
 
-export async function leaveGroup(db: Database, userId: string, groupId: string): Promise<void> {
+export async function leaveGroup(
+  db: Database,
+  userId: string,
+  groupId: string,
+  options: DomainActionOptions = {},
+): Promise<void> {
   const role = await requireMembership(db, groupId, userId);
   if (role === "OWNER") {
     throw errors.ownerCannotLeaveGroup();
   }
-  await db
-    .delete(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)));
+  // Phase 10: saída e efeitos no MESMO COMMIT.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(groupMemberships)
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, userId)));
+    await enqueueMembershipChangedEffects(tx, {
+      groupId,
+      targetUserId: userId,
+      actorUserId: userId,
+      auditEventType: "AUDIT_GROUP_MEMBER_REMOVED",
+      metadata: { source: "self" },
+      requestId: options.requestId ?? null,
+    });
+  });
 }
 
 export async function removeMember(
@@ -172,6 +204,7 @@ export async function removeMember(
   actorUserId: string,
   groupId: string,
   targetUserId: string,
+  options: DomainActionOptions = {},
 ): Promise<void> {
   const actorRole = await requireGroupRole(db, groupId, actorUserId, ["OWNER", "ADMIN"]);
   const targetRole = await findMembershipRole(db, groupId, targetUserId);
@@ -185,9 +218,20 @@ export async function removeMember(
   if (actorRole === "ADMIN" && targetRole !== "MEMBER") {
     throw errors.insufficientGroupRole();
   }
-  await db
-    .delete(groupMemberships)
-    .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId)));
+  // Phase 10: remoção e efeitos no MESMO COMMIT.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(groupMemberships)
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId)));
+    await enqueueMembershipChangedEffects(tx, {
+      groupId,
+      targetUserId,
+      actorUserId,
+      auditEventType: "AUDIT_GROUP_MEMBER_REMOVED",
+      metadata: { source: "admin" },
+      requestId: options.requestId ?? null,
+    });
+  });
 }
 
 export async function changeMemberRole(
@@ -196,6 +240,7 @@ export async function changeMemberRole(
   groupId: string,
   targetUserId: string,
   newRole: "ADMIN" | "MEMBER",
+  options: DomainActionOptions = {},
 ): Promise<GroupMemberView> {
   return db.transaction(async (tx) => {
     await requireGroupRole(tx, groupId, actorUserId, ["OWNER"]);
@@ -228,6 +273,17 @@ export async function changeMemberRole(
     if (!row) {
       throw errors.memberNotFound();
     }
+    // Phase 10: auditoria no MESMO COMMIT da mudança de papel.
+    await enqueueAudit(tx, "AUDIT_GROUP_MEMBER_ROLE_CHANGED", {
+      aggregateType: "GROUP",
+      aggregateId: groupId,
+      groupId,
+      actorUserId,
+      targetType: "GROUP_MEMBERSHIP",
+      targetId: targetUserId,
+      metadata: { role: newRole },
+      requestId: options.requestId ?? null,
+    });
     return {
       id: row.id,
       name: row.name,

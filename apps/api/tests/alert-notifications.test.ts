@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -36,7 +37,7 @@ async function createAlertAndFlush(user: TestUser, groupId: string, location?: u
     user,
     location === undefined ? { groupId } : { groupId, location },
   );
-  await app.background.flush();
+  await drainOutbox(app);
   return res;
 }
 
@@ -72,6 +73,8 @@ describe("Push ao criar alerta — destinatários", () => {
       b: (await registerActiveDevice(app, memberB)).token,
       outsider: (await registerActiveDevice(app, outsider)).token,
     };
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("notifica membros do grupo (todos os dispositivos), exclui criador e externos", async () => {
@@ -149,7 +152,7 @@ describe("Push ao criar alerta — destinatários", () => {
     const key = newIdempotencyKey();
     const first = await postAlert(app, creator, { groupId }, key);
     const retry = await postAlert(app, creator, { groupId }, key);
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(first.statusCode).toBe(201);
     expect(retry.statusCode).toBe(201);
@@ -164,7 +167,7 @@ describe("Push ao criar alerta — destinatários", () => {
       url: `/alerts/${alertId}/resolve`,
       headers: authHeaders(creator),
     });
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.batches).toHaveLength(1);
 
     const second = await createAlertAndFlush(creator, groupId);
@@ -174,7 +177,7 @@ describe("Push ao criar alerta — destinatários", () => {
       url: `/alerts/${secondId}/cancel`,
       headers: authHeaders(creator),
     });
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.batches).toHaveLength(2);
   });
 });
@@ -191,6 +194,8 @@ describe("Push ao criar alerta — falhas do provedor", () => {
     groupId = await createGroup(app, creator);
     await addMember(app, creator, groupId, member);
     memberToken = (await registerActiveDevice(app, member)).token;
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("provedor lançando erro: alerta criado e persistido, sem rollback", async () => {
@@ -266,14 +271,20 @@ describe("Push ao criar alerta — falhas do provedor", () => {
     const slowApp = await createTestApp({ pushProvider: slowProvider });
     try {
       const res = await postAlert(slowApp, creator, { groupId });
-      // A resposta chegou enquanto o envio ainda está bloqueado no provedor
-      // (há também a publicação realtime da Phase 5 em segundo plano).
+      // Phase 10: a resposta não espera o provedor porque o envio sequer
+      // começou — ele está **durável** na outbox, não em memória.
       expect(res.statusCode).toBe(201);
-      expect(slowApp.background.pendingCount()).toBeGreaterThanOrEqual(1);
+      expect(slowProvider.batches).toHaveLength(0);
+      const [pending] = await cleaner.sql<{ status: string }[]>`
+        SELECT status FROM outbox_events WHERE event_type = 'PUSH_ALERT_CREATED'
+      `;
+      expect(pending?.status).toBe("PENDING");
+
+      // Só quando o worker roda o provedor é chamado (e aqui ele trava).
+      const draining = slowApp.outboxWorker.runOnce();
       await started;
-      expect(slowApp.background.pendingCount()).toBeGreaterThanOrEqual(1);
       release();
-      await slowApp.background.flush();
+      await draining;
       expect(slowProvider.recipients).toEqual([memberToken]);
     } finally {
       await slowApp.close();

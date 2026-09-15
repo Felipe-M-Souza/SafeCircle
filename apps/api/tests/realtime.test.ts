@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -97,6 +98,7 @@ describe("GET /realtime — conexão", () => {
 
     // O socket continua funcional: recebe o próximo evento normalmente.
     await createAlert(app, owner, groupId);
+    await drainOutbox(app);
     await client.waitForEvent(isType("ALERT_CREATED"));
     expect(app.realtimeHub.connectionCount(owner.userId)).toBe(1);
   });
@@ -126,6 +128,8 @@ describe("Eventos realtime — alertas", () => {
     groupId = await createGroup(app, owner, "Família");
     await addMember(app, owner, groupId, member);
     await createGroup(app, outsider, "Grupo B");
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("criação publica ALERT_CREATED com envelope versionado aos membros (inclusive criador); externo não recebe", async () => {
@@ -137,6 +141,7 @@ describe("Eventos realtime — alertas", () => {
     expect(res.statusCode).toBe(201);
     const alertId = res.json().id as string;
 
+    await drainOutbox(app);
     const event = await memberClient.waitForEvent(isType("ALERT_CREATED"));
     expect(event).toMatchObject({
       version: 1,
@@ -146,6 +151,7 @@ describe("Eventos realtime — alertas", () => {
     expect(typeof event.eventId).toBe("string");
     expect(new Date(event.occurredAt).getTime()).not.toBeNaN();
 
+    await drainOutbox(app);
     const ownEvent = await ownerClient.waitForEvent(isType("ALERT_CREATED"));
     expect(ownEvent.eventId).toBe(event.eventId);
 
@@ -157,6 +163,7 @@ describe("Eventos realtime — alertas", () => {
     const a = await connect(member);
     const b = await connect(member);
     await createAlert(app, owner, groupId);
+    await drainOutbox(app);
     const [eventA, eventB] = await Promise.all([
       a.waitForEvent(isType("ALERT_CREATED")),
       b.waitForEvent(isType("ALERT_CREATED")),
@@ -169,7 +176,7 @@ describe("Eventos realtime — alertas", () => {
     const key = newIdempotencyKey();
     expect((await postAlert(app, owner, { groupId }, key)).statusCode).toBe(201);
     expect((await postAlert(app, owner, { groupId }, key)).statusCode).toBe(201);
-    await app.background.flush();
+    await drainOutbox(app);
 
     await client.waitForEvent(isType("ALERT_CREATED"));
     await client.expectNoEvent((e) => e.type === "ALERT_CREATED" && client.events.indexOf(e) > 0);
@@ -185,6 +192,7 @@ describe("Eventos realtime — alertas", () => {
       headers: authHeaders(owner),
     });
     expect(resolve.statusCode).toBe(200);
+    await drainOutbox(app);
     const resolved = await client.waitForEvent(isType("ALERT_RESOLVED"));
     expect(resolved.data).toEqual({ alertId: first.id, groupId });
 
@@ -195,7 +203,7 @@ describe("Eventos realtime — alertas", () => {
       headers: authHeaders(owner),
     });
     expect(again.statusCode).toBe(409);
-    await app.background.flush();
+    await drainOutbox(app);
     await client.expectNoEvent(isType("ALERT_CANCELLED"));
 
     const second = await createAlert(app, owner, groupId);
@@ -205,6 +213,7 @@ describe("Eventos realtime — alertas", () => {
       headers: authHeaders(owner),
     });
     expect(cancel.statusCode).toBe(200);
+    await drainOutbox(app);
     const cancelled = await client.waitForEvent(isType("ALERT_CANCELLED"));
     expect(cancelled.data).toEqual({ alertId: second.id, groupId });
   });
@@ -218,7 +227,7 @@ describe("Eventos realtime — alertas", () => {
     try {
       const res = await postAlert(app, owner, { groupId });
       expect(res.statusCode).toBe(201);
-      await app.background.flush();
+      await drainOutbox(app);
       const check = await app.inject({
         method: "GET",
         url: `/alerts/${res.json().id}`,
@@ -232,6 +241,7 @@ describe("Eventos realtime — alertas", () => {
     }
     // O hub volta a funcionar normalmente depois.
     const alert = await createAlert(app, member, groupId);
+    await drainOutbox(app);
     const event = await client.waitForEvent(isType("ALERT_CREATED"));
     expect(event.data).toMatchObject({ alertId: alert.id });
   });
@@ -244,11 +254,12 @@ describe("Eventos realtime — alertas", () => {
       headers: authHeaders(member),
     });
     expect(leave.statusCode).toBe(204);
+    await drainOutbox(app);
     const changed = await client.waitForEvent(isType("GROUP_MEMBERSHIP_CHANGED"));
     expect(changed.data).toEqual({ groupId, userId: member.userId });
 
     await createAlert(app, owner, groupId);
-    await app.background.flush();
+    await drainOutbox(app);
     await client.expectNoEvent(isType("ALERT_CREATED"));
   });
 
@@ -261,6 +272,7 @@ describe("Eventos realtime — alertas", () => {
       headers: authHeaders(member),
       payload: { type: "GOING_TO_HELP" },
     });
+    await drainOutbox(app);
     await client.waitForEvent(isType("ALERT_ACKNOWLEDGEMENT_CHANGED"));
 
     const raw = JSON.stringify(client.events);

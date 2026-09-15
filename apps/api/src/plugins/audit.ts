@@ -1,52 +1,47 @@
 import fp from "fastify-plugin";
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import { recordAuditEvent, type AuditEventInput } from "../observability/audit.js";
+import type { FastifyInstance } from "fastify";
+import { enqueueAudit } from "../outbox/effects.js";
+import type { AuditOutboxEventType } from "../outbox/outbox.types.js";
+import type { AuditMetadata } from "../observability/audit.js";
 
 /**
- * Auditoria integrada ao Fastify (Phase 9).
+ * Auditoria avulsa (Phase 10).
  *
- * `app.audit(...)` grava a trilha em segundo plano: nenhuma rota crítica (SOS
- * inclusive) espera pelo INSERT, e uma falha de auditoria nunca desfaz a
- * operação — ela é logada e contabilizada. As tarefas em segundo plano são
- * aguardadas no shutdown, então a trilha sobrevive a um encerramento limpo.
+ * A regra geral é enfileirar o evento de auditoria **dentro da transação do
+ * domínio** (ver `outbox/effects.ts`). Este helper existe só para o caso em que
+ * não há mudança de domínio com a qual ser atômico — hoje, a tentativa de login
+ * malsucedida: nada foi alterado no banco, mas o fato precisa ficar registrado.
  *
- * `app.auditRequest(request, ...)` preenche automaticamente `requestId` e o
- * ator autenticado, evitando repetição em cada rota.
+ * Mesmo aqui a durabilidade é real: o evento é gravado em uma transação própria
+ * e entregue pelo worker, em vez de depender de uma tarefa em memória.
  */
-
-export type RequestAuditInput = Omit<AuditEventInput, "requestId" | "actorUserId"> & {
-  /** Sobrescreve o ator (padrão: usuário autenticado da requisição). */
-  actorUserId?: string | null;
-};
+export interface StandaloneAuditInput {
+  eventType: AuditOutboxEventType;
+  aggregateType: string;
+  aggregateId?: string | null;
+  actorUserId: string | null;
+  targetType?: string;
+  targetId?: string | null;
+  groupId?: string | null;
+  outcome?: "SUCCEEDED" | "FAILED";
+  metadata?: AuditMetadata;
+  requestId?: string | null;
+}
 
 declare module "fastify" {
   interface FastifyInstance {
-    audit: (input: AuditEventInput) => void;
-    auditRequest: (request: FastifyRequest, input: RequestAuditInput) => void;
+    enqueueAuditEvent: (input: StandaloneAuditInput) => Promise<void>;
   }
 }
 
 export const auditPlugin = fp(
   async (app: FastifyInstance) => {
-    const audit = (input: AuditEventInput): void => {
-      app.background.run(`audit:${input.eventType}`, () =>
-        recordAuditEvent({ db: app.db, log: app.log }, input),
-      );
-    };
-
-    app.decorate("audit", audit);
-
-    app.decorate("auditRequest", (request: FastifyRequest, input: RequestAuditInput) => {
-      audit({
-        ...input,
-        actorUserId:
-          input.actorUserId !== undefined ? input.actorUserId : (request.auth?.userId ?? null),
-        requestId: typeof request.id === "string" ? request.id : null,
+    app.decorate("enqueueAuditEvent", async (input: StandaloneAuditInput) => {
+      const { eventType, ...rest } = input;
+      await app.db.transaction(async (tx) => {
+        await enqueueAudit(tx, eventType, rest);
       });
     });
   },
-  {
-    name: "safecircle-audit",
-    dependencies: ["safecircle-database", "safecircle-background-tasks"],
-  },
+  { name: "safecircle-audit", dependencies: ["safecircle-database"] },
 );

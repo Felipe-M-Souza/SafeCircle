@@ -1,7 +1,5 @@
 import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
-import { createRealtimeEvent } from "../infrastructure/realtime/events.js";
-import { notifyJourneyOverdue } from "../modules/journeys/journey-notifications.service.js";
 import { JourneyScheduler } from "../modules/journeys/journey-scheduler.js";
 import { journeyTransitionsTotal } from "../observability/metrics.js";
 
@@ -19,8 +17,10 @@ export interface JourneySchedulerPluginOptions {
 
 /**
  * Integra o JourneyScheduler ao lifecycle do Fastify (Phase 8).
- * Efeitos de atraso (realtime + push) rodam em segundo plano após o commit da
- * transição, capturados pelo runner — nunca revertem o estado.
+ *
+ * Phase 10: como no check-in, os efeitos do atraso são gravados na mesma
+ * transação da transição `ACTIVE -> OVERDUE` (ver `markOverdueBatch`) e
+ * entregues pelo worker da outbox.
  */
 export const journeySchedulerPlugin = fp(
   async (app: FastifyInstance, options: JourneySchedulerPluginOptions) => {
@@ -30,30 +30,9 @@ export const journeySchedulerPlugin = fp(
       intervalMs: options.intervalMs,
       onOverdue: (journey) => {
         journeyTransitionsTotal.inc({ transition: "overdue" });
-        // Ator nulo: a transição é do sistema, não de uma pessoa.
-        app.audit({
-          eventType: "JOURNEY_OVERDUE",
-          actorUserId: null,
-          targetType: "JOURNEY",
-          targetId: journey.id,
-          groupId: journey.groupId,
-          metadata: { source: "scheduler" },
-        });
-        app.background.run("realtime:JOURNEY_OVERDUE", () =>
-          app.realtime.publishToGroup(
-            journey.groupId,
-            createRealtimeEvent("JOURNEY_OVERDUE", {
-              journeyId: journey.id,
-              groupId: journey.groupId,
-              userId: journey.userId,
-            }),
-          ),
-        );
-        app.background.run("journey-overdue-push", () =>
-          notifyJourneyOverdue(
-            { db: app.db, pushProvider: app.pushProvider, log: app.log },
-            journey,
-          ),
+        app.log.debug(
+          { event: "journey_marked_overdue", journeyId: journey.id, groupId: journey.groupId },
+          "Trajeto atrasado registrado",
         );
       },
     });
@@ -69,11 +48,6 @@ export const journeySchedulerPlugin = fp(
   },
   {
     name: "safecircle-journey-scheduler",
-    dependencies: [
-      "safecircle-database",
-      "safecircle-realtime",
-      "safecircle-background-tasks",
-      "safecircle-audit",
-    ],
+    dependencies: ["safecircle-database"],
   },
 );

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -67,6 +68,8 @@ describe("CheckinScheduler", () => {
     await addMember(app, owner, groupId, memberA);
     await addMember(app, owner, groupId, memberB);
     await createGroup(app, outsider, "Outro");
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("não está iniciado nos testes e ACTIVE com prazo futuro não muda", async () => {
@@ -88,11 +91,12 @@ describe("CheckinScheduler", () => {
     openClients.push(client, outsiderClient);
 
     const checkin = await createCheckin(app, owner, groupId, 10);
+    await drainOutbox(app);
     await client.waitForEvent((e) => e.type === "CHECKIN_CREATED");
     await expireCheckin(cleaner.sql, checkin.id);
 
     expect(await app.checkinScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const row = await statusOf(checkin.id);
     expect(row.status).toBe("OVERDUE");
@@ -102,6 +106,7 @@ describe("CheckinScheduler", () => {
     expect(typeof view.json().overdueAt).toBe("string");
 
     // Realtime: membros recebem CHECKIN_OVERDUE; externo não.
+    await drainOutbox(app);
     const event = await client.waitForEvent((e) => e.type === "CHECKIN_OVERDUE");
     expect(event.data).toEqual({ checkinId: checkin.id, groupId, userId: owner.userId });
     await outsiderClient.expectNoEvent(() => true);
@@ -125,7 +130,7 @@ describe("CheckinScheduler", () => {
 
     // Segunda execução: nada a processar, nenhum push/evento a mais.
     expect(await app.checkinScheduler.runOnce()).toBe(0);
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.batches).toHaveLength(1);
     expect(client.events.filter((e) => e.type === "CHECKIN_OVERDUE")).toHaveLength(1);
   });
@@ -134,7 +139,7 @@ describe("CheckinScheduler", () => {
     const checkin = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, checkin.id);
     await app.checkinScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
     const [alerts] = await cleaner.sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM emergency_alerts
     `;
@@ -157,7 +162,7 @@ describe("CheckinScheduler", () => {
     const first = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, first.id);
     await app.checkinScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.recipients).toEqual([active.token]);
 
     push.reset();
@@ -170,7 +175,7 @@ describe("CheckinScheduler", () => {
     const second = await createCheckin(app, owner, groupId, 10);
     await expireCheckin(cleaner.sql, second.id);
     expect(await app.checkinScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
     expect((await statusOf(second.id)).status).toBe("OVERDUE");
     expect(app.background.pendingCount()).toBe(0);
   });
@@ -184,7 +189,7 @@ describe("CheckinScheduler", () => {
     };
     try {
       expect(await app.checkinScheduler.runOnce()).toBe(1);
-      await app.background.flush();
+      await drainOutbox(app);
       expect((await statusOf(checkin.id)).status).toBe("OVERDUE");
     } finally {
       app.realtimeHub.send = original;
@@ -222,7 +227,7 @@ describe("CheckinScheduler", () => {
     const restarted = await createTestApp({ pushProvider: new FakePushProvider() });
     try {
       expect(await restarted.checkinScheduler.runOnce()).toBe(1);
-      await restarted.background.flush();
+      await drainOutbox(restarted);
     } finally {
       await restarted.close();
     }

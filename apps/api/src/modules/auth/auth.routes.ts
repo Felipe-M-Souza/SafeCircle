@@ -32,26 +32,25 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
 
   app.post("/auth/login", { config: rateLimit }, async (request, reply) => {
     const input = loginSchema.parse(request.body);
+    const requestId = typeof request.id === "string" ? request.id : null;
     let result: Awaited<ReturnType<typeof loginUser>>;
     try {
-      result = await loginUser(buildContext(), input);
+      // Sucesso: a auditoria entra na mesma transação da sessão (ver serviço).
+      result = await loginUser(buildContext(), input, { requestId });
     } catch (error) {
-      // Auditoria de tentativa falha: sem e-mail, sem senha — apenas o fato.
-      // O ator é desconhecido por definição (credencial não confirmada).
-      app.auditRequest(request, {
-        eventType: "AUTH_LOGIN_FAILED",
+      // Falha: não há mudança de domínio para ser atômica com. Enfileiramos em
+      // transação própria — sem e-mail, sem senha, apenas o fato e o ator
+      // desconhecido (a credencial não foi confirmada).
+      await app.enqueueAuditEvent({
+        eventType: "AUDIT_AUTH_LOGIN_FAILED",
+        aggregateType: "USER",
         actorUserId: null,
         targetType: "USER",
         outcome: "FAILED",
+        requestId,
       });
       throw error;
     }
-    app.auditRequest(request, {
-      eventType: "AUTH_LOGIN_SUCCEEDED",
-      actorUserId: result.user.id,
-      targetType: "USER",
-      targetId: result.user.id,
-    });
     return reply.status(200).send(result);
   });
 
@@ -63,12 +62,8 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
 
   app.post("/auth/logout", { config: rateLimit }, async (request, reply) => {
     const input = logoutSchema.parse(request.body);
-    await logout(buildContext(), input.refreshToken);
-    // Sem ator conhecido (a rota não exige access token) e sem o refresh token.
-    app.auditRequest(request, {
-      eventType: "AUTH_LOGOUT",
-      actorUserId: null,
-      targetType: "SESSION",
+    await logout(buildContext(), input.refreshToken, {
+      requestId: typeof request.id === "string" ? request.id : null,
     });
     // Idempotente e sem revelar detalhes de sessões.
     return reply.status(204).send();

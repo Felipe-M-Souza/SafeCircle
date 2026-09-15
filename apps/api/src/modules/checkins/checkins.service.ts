@@ -7,6 +7,12 @@ import {
   users,
   type CheckinStatus,
 } from "../../infrastructure/database/schema.js";
+import {
+  enqueueCheckinCreatedEffects,
+  enqueueCheckinOverdueEffects,
+  enqueueCheckinTransitionEffects,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { hashRequestPayload } from "../../shared/idempotency.js";
 import { findMembershipRole, requireMembership } from "../groups/authorization.js";
@@ -191,6 +197,7 @@ export async function createCheckin(
   input: CreateCheckinInput,
   idempotencyKey: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<{ checkin: CheckinView; replayed: boolean }> {
   await requireMembership(db, input.groupId, userId);
   const dueAt = validateDueAt(input.dueAt, now);
@@ -222,6 +229,14 @@ export async function createCheckin(
             eq(idempotencyKeys.key, idempotencyKey),
           ),
         );
+      // Phase 10: efeitos na MESMA transação do check-in.
+      await enqueueCheckinCreatedEffects(tx, {
+        checkinId: created.id,
+        groupId: input.groupId,
+        ownerUserId: userId,
+        actorUserId: userId,
+        requestId: options.requestId ?? null,
+      });
       return created.id;
     });
     return { checkin: await loadView(db, checkinId), replayed: false };
@@ -300,18 +315,38 @@ export async function confirmCheckinSafe(
   userId: string,
   checkinId: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<CheckinTransitionResult> {
   const row = await loadOwned(db, userId, checkinId);
   if (row.status === "SAFE") return { checkin: toView(row), changed: false };
   if (row.status === "CANCELLED") throw errors.invalidCheckinTransition();
 
-  const updated = await db
-    .update(safetyCheckins)
-    .set({ status: "SAFE", confirmedAt: now, updatedAt: now })
-    .where(
-      and(eq(safetyCheckins.id, checkinId), inArray(safetyCheckins.status, ["ACTIVE", "OVERDUE"])),
-    )
-    .returning({ id: safetyCheckins.id });
+  // Transição e efeitos no mesmo COMMIT: só quem realmente mudou o estado
+  // enfileira realtime e auditoria.
+  const updated = await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(safetyCheckins)
+      .set({ status: "SAFE", confirmedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(safetyCheckins.id, checkinId),
+          inArray(safetyCheckins.status, ["ACTIVE", "OVERDUE"]),
+        ),
+      )
+      .returning({ id: safetyCheckins.id });
+
+    if (changed.length > 0) {
+      await enqueueCheckinTransitionEffects(tx, {
+        checkinId,
+        groupId: row.groupId,
+        ownerUserId: row.userId,
+        actorUserId: userId,
+        transition: "SAFE",
+        requestId: options.requestId ?? null,
+      });
+    }
+    return changed;
+  });
 
   if (updated.length === 0) {
     // Corrida: alguém já mudou o estado. Se virou SAFE, é idempotente; senão inválido.
@@ -328,16 +363,31 @@ export async function cancelCheckin(
   userId: string,
   checkinId: string,
   now: Date = new Date(),
+  options: DomainActionOptions = {},
 ): Promise<CheckinTransitionResult> {
   const row = await loadOwned(db, userId, checkinId);
   if (row.status === "CANCELLED") return { checkin: toView(row), changed: false };
   if (row.status !== "ACTIVE") throw errors.invalidCheckinTransition();
 
-  const updated = await db
-    .update(safetyCheckins)
-    .set({ status: "CANCELLED", cancelledAt: now, updatedAt: now })
-    .where(and(eq(safetyCheckins.id, checkinId), eq(safetyCheckins.status, "ACTIVE")))
-    .returning({ id: safetyCheckins.id });
+  const updated = await db.transaction(async (tx) => {
+    const changed = await tx
+      .update(safetyCheckins)
+      .set({ status: "CANCELLED", cancelledAt: now, updatedAt: now })
+      .where(and(eq(safetyCheckins.id, checkinId), eq(safetyCheckins.status, "ACTIVE")))
+      .returning({ id: safetyCheckins.id });
+
+    if (changed.length > 0) {
+      await enqueueCheckinTransitionEffects(tx, {
+        checkinId,
+        groupId: row.groupId,
+        ownerUserId: row.userId,
+        actorUserId: userId,
+        transition: "CANCELLED",
+        requestId: options.requestId ?? null,
+      });
+    }
+    return changed;
+  });
 
   if (updated.length === 0) {
     const current = await loadView(db, checkinId);
@@ -368,28 +418,43 @@ export async function markOverdueBatch(
   now: Date,
   batchSize: number,
 ): Promise<OverdueCheckin[]> {
-  const due = db
-    .select({ id: safetyCheckins.id })
-    .from(safetyCheckins)
-    .where(and(eq(safetyCheckins.status, "ACTIVE"), lte(safetyCheckins.dueAt, now)))
-    .orderBy(safetyCheckins.dueAt)
-    .limit(batchSize);
+  // Phase 10: transição e efeitos no MESMO COMMIT. Antes, o enfileiramento
+  // vinha depois do commit e uma queda no meio perdia o aviso ao grupo —
+  // justamente o que o check-in existe para garantir.
+  return db.transaction(async (tx) => {
+    const due = tx
+      .select({ id: safetyCheckins.id })
+      .from(safetyCheckins)
+      .where(and(eq(safetyCheckins.status, "ACTIVE"), lte(safetyCheckins.dueAt, now)))
+      .orderBy(safetyCheckins.dueAt)
+      .limit(batchSize);
 
-  return db
-    .update(safetyCheckins)
-    .set({ status: "OVERDUE", overdueAt: now, updatedAt: now })
-    .where(
-      and(
-        inArray(safetyCheckins.id, due),
-        eq(safetyCheckins.status, "ACTIVE"),
-        lte(safetyCheckins.dueAt, now),
-      ),
-    )
-    .returning({
-      id: safetyCheckins.id,
-      userId: safetyCheckins.userId,
-      groupId: safetyCheckins.groupId,
-    });
+    const overdue = await tx
+      .update(safetyCheckins)
+      .set({ status: "OVERDUE", overdueAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(safetyCheckins.id, due),
+          eq(safetyCheckins.status, "ACTIVE"),
+          lte(safetyCheckins.dueAt, now),
+        ),
+      )
+      .returning({
+        id: safetyCheckins.id,
+        userId: safetyCheckins.userId,
+        groupId: safetyCheckins.groupId,
+      });
+
+    // Apenas quem de fato executou a transição enfileira os efeitos.
+    for (const checkin of overdue) {
+      await enqueueCheckinOverdueEffects(tx, {
+        checkinId: checkin.id,
+        groupId: checkin.groupId,
+        ownerUserId: checkin.userId,
+      });
+    }
+    return overdue;
+  });
 }
 
 /**

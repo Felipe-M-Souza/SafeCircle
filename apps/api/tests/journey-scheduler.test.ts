@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -67,6 +68,8 @@ describe("JourneyScheduler", () => {
     await addMember(app, owner, groupId, memberA);
     await addMember(app, owner, groupId, memberB);
     await createGroup(app, outsider, "Outro");
+    // Entrega os eventos do preparo antes das asserções do teste.
+    await drainOutbox(app);
   });
 
   it("não está iniciado nos testes e ACTIVE com prazo futuro não muda", async () => {
@@ -88,11 +91,12 @@ describe("JourneyScheduler", () => {
     openClients.push(client, outsiderClient);
 
     const journey = await createJourney(app, owner, groupId);
+    await drainOutbox(app);
     await client.waitForEvent((e) => e.type === "JOURNEY_CREATED");
     await expireJourney(cleaner.sql, journey.id);
 
     expect(await app.journeyScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const row = await statusOf(journey.id);
     expect(row.status).toBe("OVERDUE");
@@ -101,6 +105,7 @@ describe("JourneyScheduler", () => {
     expect(view.json()).toMatchObject({ status: "OVERDUE" });
     expect(typeof view.json().overdueAt).toBe("string");
 
+    await drainOutbox(app);
     const event = await client.waitForEvent((e) => e.type === "JOURNEY_OVERDUE");
     expect(event.data).toEqual({ journeyId: journey.id, groupId, userId: owner.userId });
     await outsiderClient.expectNoEvent(() => true);
@@ -123,7 +128,7 @@ describe("JourneyScheduler", () => {
     }
 
     expect(await app.journeyScheduler.runOnce()).toBe(0);
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.batches).toHaveLength(1);
     expect(client.events.filter((e) => e.type === "JOURNEY_OVERDUE")).toHaveLength(1);
   });
@@ -132,7 +137,7 @@ describe("JourneyScheduler", () => {
     const journey = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, journey.id);
     await app.journeyScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
     const [alerts] = await cleaner.sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM emergency_alerts
     `;
@@ -151,7 +156,7 @@ describe("JourneyScheduler", () => {
     const first = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, first.id);
     await app.journeyScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
     expect(push.recipients).toEqual([active.token]);
 
     push.reset();
@@ -160,7 +165,7 @@ describe("JourneyScheduler", () => {
     const second = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, second.id);
     expect(await app.journeyScheduler.runOnce()).toBe(1);
-    await app.background.flush();
+    await drainOutbox(app);
     expect((await statusOf(second.id)).status).toBe("OVERDUE");
     expect(app.background.pendingCount()).toBe(0);
   });
@@ -174,7 +179,7 @@ describe("JourneyScheduler", () => {
     };
     try {
       expect(await app.journeyScheduler.runOnce()).toBe(1);
-      await app.background.flush();
+      await drainOutbox(app);
       expect((await statusOf(journey.id)).status).toBe("OVERDUE");
     } finally {
       app.realtimeHub.send = original;
@@ -212,7 +217,7 @@ describe("JourneyScheduler", () => {
     const restarted = await createTestApp({ pushProvider: new FakePushProvider() });
     try {
       expect(await restarted.journeyScheduler.runOnce()).toBe(1);
-      await restarted.background.flush();
+      await drainOutbox(restarted);
     } finally {
       await restarted.close();
     }

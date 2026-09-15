@@ -1,7 +1,5 @@
 import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
-import { createRealtimeEvent } from "../infrastructure/realtime/events.js";
-import { notifyCheckinOverdue } from "../modules/checkins/checkin-notifications.service.js";
 import { CheckinScheduler } from "../modules/checkins/checkin-scheduler.js";
 import { checkinTransitionsTotal } from "../observability/metrics.js";
 
@@ -19,8 +17,12 @@ export interface CheckinSchedulerPluginOptions {
 
 /**
  * Integra o CheckinScheduler ao lifecycle do Fastify (Phase 7).
- * Efeitos de vencimento (realtime + push) rodam em segundo plano após o
- * commit da transição, capturados pelo runner — nunca revertem o estado.
+ *
+ * Phase 10: os efeitos do vencimento (push, realtime, auditoria) são gravados
+ * na **mesma transação** da transição `ACTIVE -> OVERDUE`, dentro de
+ * `markOverdueBatch`. O plugin não dispara mais nada em segundo plano — quem
+ * entrega é o worker da outbox, e por isso um restart no meio do caminho
+ * deixou de significar grupo sem aviso.
  */
 export const checkinSchedulerPlugin = fp(
   async (app: FastifyInstance, options: CheckinSchedulerPluginOptions) => {
@@ -29,31 +31,11 @@ export const checkinSchedulerPlugin = fp(
       log: app.log,
       intervalMs: options.intervalMs,
       onOverdue: (checkin) => {
+        // Métrica local; o efeito externo já está durável na outbox.
         checkinTransitionsTotal.inc({ transition: "overdue" });
-        // Ator nulo: a transição é do sistema, não de uma pessoa.
-        app.audit({
-          eventType: "CHECKIN_OVERDUE",
-          actorUserId: null,
-          targetType: "CHECKIN",
-          targetId: checkin.id,
-          groupId: checkin.groupId,
-          metadata: { source: "scheduler" },
-        });
-        app.background.run("realtime:CHECKIN_OVERDUE", () =>
-          app.realtime.publishToGroup(
-            checkin.groupId,
-            createRealtimeEvent("CHECKIN_OVERDUE", {
-              checkinId: checkin.id,
-              groupId: checkin.groupId,
-              userId: checkin.userId,
-            }),
-          ),
-        );
-        app.background.run("checkin-overdue-push", () =>
-          notifyCheckinOverdue(
-            { db: app.db, pushProvider: app.pushProvider, log: app.log },
-            checkin,
-          ),
+        app.log.debug(
+          { event: "checkin_marked_overdue", checkinId: checkin.id, groupId: checkin.groupId },
+          "Check-in vencido registrado",
         );
       },
     });
@@ -69,11 +51,6 @@ export const checkinSchedulerPlugin = fp(
   },
   {
     name: "safecircle-checkin-scheduler",
-    dependencies: [
-      "safecircle-database",
-      "safecircle-realtime",
-      "safecircle-background-tasks",
-      "safecircle-audit",
-    ],
+    dependencies: ["safecircle-database"],
   },
 );

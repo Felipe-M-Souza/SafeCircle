@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
 import { addMember, createGroup } from "./helpers/groups.js";
@@ -60,7 +61,7 @@ describe("Auditoria de ações críticas", () => {
     member = await registerUser(app, { name: "Maria" });
     groupId = await createGroup(app, owner, "Família");
     await addMember(app, owner, groupId, member);
-    await app.background.flush();
+    await drainOutbox(app);
   });
 
   it("login bem-sucedido registra o ator e correlaciona com a requisição", async () => {
@@ -71,7 +72,7 @@ describe("Auditoria de ações críticas", () => {
       payload: { email: owner.email, password: "senhaSegura123" },
     });
     expect(res.statusCode).toBe(200);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [row] = await auditRows("AUTH_LOGIN_SUCCEEDED");
     expect(row).toBeTruthy();
@@ -89,7 +90,7 @@ describe("Auditoria de ações críticas", () => {
       payload: { email: owner.email, password: "senhaErrada12345" },
     });
     expect(res.statusCode).toBe(401);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [row] = await auditRows("AUTH_LOGIN_FAILED");
     expect(row).toBeTruthy();
@@ -118,7 +119,7 @@ describe("Auditoria de ações críticas", () => {
       payload: { role: "ADMIN" },
     });
     expect(roleRes.statusCode).toBe(200);
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [groupRow] = await auditRows("GROUP_CREATED");
     expect(groupRow!.actor_user_id).toBe(owner.userId);
@@ -151,7 +152,7 @@ describe("Auditoria de ações críticas", () => {
       url: `/alerts/${alertId}/resolve`,
       headers: authHeaders(owner),
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     const rows = await auditRows();
     const types = rows.map((row) => row.event_type);
@@ -171,7 +172,7 @@ describe("Auditoria de ações críticas", () => {
 
     const journey = await createJourney(app, owner, groupId);
     await journeyAction(app, owner, journey.id, "arrive");
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [safeRow] = await auditRows("CHECKIN_MARKED_SAFE");
     expect(safeRow!.actor_user_id).toBe(owner.userId);
@@ -187,7 +188,7 @@ describe("Auditoria de ações críticas", () => {
     const overdueJourney = await createJourney(app, owner, groupId);
     await expireJourney(cleaner.sql, overdueJourney.id);
     await app.journeyScheduler.runOnce();
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [checkinOverdue] = await auditRows("CHECKIN_OVERDUE");
     expect(checkinOverdue!.actor_user_id).toBeNull();
@@ -204,7 +205,7 @@ describe("Auditoria de ações críticas", () => {
       destinationLabel: "Rua Secreta 42",
       liveLocationEnabled: true,
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     const [row] = await auditRows("JOURNEY_CREATED");
     expect(row!.metadata).toEqual({ hasDestination: true, liveLocationEnabled: true });
@@ -216,7 +217,7 @@ describe("Auditoria de ações críticas", () => {
     await app.inject({ method: "GET", url: "/checkins", headers: authHeaders(owner) });
     await app.inject({ method: "GET", url: "/journeys", headers: authHeaders(owner) });
     await app.inject({ method: "GET", url: `/groups/${groupId}`, headers: authHeaders(owner) });
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(await auditRows()).toHaveLength(0);
   });
@@ -232,7 +233,7 @@ describe("Auditoria de ações críticas", () => {
       headers: authHeaders(owner),
       payload: { name: "Outro" },
     });
-    await app.background.flush();
+    await drainOutbox(app);
 
     expect(
       await metricValue("safecircle_audit_events_total", {
@@ -260,7 +261,7 @@ describe("Auditoria de ações críticas", () => {
         headers: authHeaders(owner),
         payload: { name: "Resiliente" },
       });
-      await app.background.flush();
+      await drainOutbox(app);
 
       // A operação de negócio concluiu normalmente.
       expect(res.statusCode).toBe(201);
@@ -310,7 +311,7 @@ describe("Retenção da auditoria", () => {
   it("apaga só eventos mais antigos que 180 dias e nunca toca no domínio", async () => {
     const user = await registerUser(app);
     const groupId = await createGroup(app, user, "Família");
-    await app.background.flush();
+    await drainOutbox(app);
 
     await cleaner.sql`
       INSERT INTO audit_events (event_type, outcome, created_at)
