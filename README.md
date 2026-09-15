@@ -72,7 +72,18 @@ sem mudança funcional: push, realtime e auditoria passaram a ser gravados na
 entregues por um worker persistente com claim por `FOR UPDATE SKIP LOCKED`,
 lease, retry com backoff exponencial e dead-letter. A janela em que um alerta
 era criado e a notificação se perdia no restart deixou de existir. A entrega é
-**at-least-once** (ver ADR 0011).
+**at-least-once** (ver ADR 0011). Phase 11 (Security & Privacy Hardening)
+concluída, sem mudança de contrato nas rotas existentes: threat model e matriz
+de autorização versionados e testados, validação de sessão a cada requisição,
+sessões listáveis e revogáveis (`/me/sessions`), detecção de reuso de refresh
+token, freio de login por conta, senha mínima de 12 caracteres para contas
+novas, produção fail-fast, CORS por allow-list, cabeçalhos de segurança,
+limite de corpo (413) e só JSON (415), WebSocket com validação de `Origin` e
+de sessão, exportação dos próprios dados (`GET /me/privacy/export`),
+`pnpm privacy:cleanup` consolidando toda a retenção e CI com menor privilégio,
+actions fixadas por SHA, Dependabot, auditoria de dependências e CodeQL (ver
+ADR 0012). Exclusão de conta **não** foi implementada e está registrada como
+RELEASE BLOCKER antes das lojas.
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -165,6 +176,53 @@ pnpm outbox:cleanup                    # processados (30 d) e dead-letter (90 d)
 `retry-dead` só aceita eventos em dead-letter — reenfileirar trabalho que já
 está na fila criaria processamento concorrente do mesmo efeito. O payload não é
 editável por nenhum comando: a CLI reprocessa, não reescreve histórico.
+
+**Segurança e privacidade (Phase 11):** as decisões estão no ADR 0012; o
+modelo de ameaças, a matriz de autorização, o checklist do repositório, a
+resposta a incidentes e o checklist de release ficam em `docs/security/`; o
+inventário de dados pessoais e a política de retenção, em `docs/privacy/`.
+
+Variáveis novas (ver `.env.example`; nenhuma é segredo):
+
+| Variável               | Padrão  | Efeito                                                                      |
+| ---------------------- | ------- | --------------------------------------------------------------------------- |
+| `CORS_ALLOWED_ORIGINS` | vazio   | Allow-list `https://host[:porta]`, sem wildcard; vale para CORS e WebSocket. |
+| `HSTS_ENABLED`         | `false` | Liga HSTS; só onde o TLS externo é garantido pelo ingress.                  |
+| `TRUST_PROXY`          | `false` | `true` ou número de saltos; só confie em `X-Forwarded-*` atrás do seu proxy. |
+
+Em `NODE_ENV=production` a API **recusa subir** com `JWT_ACCESS_SECRET` ausente
+ou fraco, sem `DATABASE_URL`, com `OUTBOX_ENABLED=false`, com `/metrics`
+habilitado sem token ou com origem CORS inválida. Nenhuma mensagem de erro
+imprime o valor de um segredo.
+
+Rotas novas, todas do próprio usuário autenticado:
+
+```text
+GET    /me/sessions                  sessões ativas (sem hash, IP ou User-Agent)
+DELETE /me/sessions/:sessionId       revoga uma sessão própria (inclusive a atual)
+POST   /me/sessions/revoke-others    encerra todas menos a atual
+GET    /me/privacy/export            exportação JSON dos próprios dados (5/h)
+```
+
+Revogar uma sessão tem efeito imediato: o access token dela deixa de valer na
+próxima requisição e o WebSocket é fechado. A exportação nunca inclui senha,
+hashes, tokens, dados de outros membros nem internos da outbox/auditoria.
+
+Comandos (o de retenção em cron diário; o de auditoria roda no CI):
+
+```bash
+pnpm privacy:cleanup   # todas as políticas de retenção em uma execução; nunca apaga ACTIVE
+pnpm security:audit    # dependências com advisory high/critical
+```
+
+Limitações conhecidas desta fase: rate limit e freio de login são **por
+instância**; não há MFA nem troca de senha; GPS spoofing é risco residual; a
+entrega de push continua at-least-once; as configurações de segurança do GitHub
+são manuais (`docs/security/repository-security.md`); TLS, encryption at rest e
+backups dependem da infraestrutura; e **exclusão de conta está pendente**:
+
+> RELEASE BLOCKER — implementar fluxo completo de exclusão de conta antes da
+> publicação nas lojas.
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
 (iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push
