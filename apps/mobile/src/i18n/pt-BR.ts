@@ -389,7 +389,8 @@ export const ptBR = {
     emailRequired: "Informe seu e-mail.",
     emailInvalid: "E-mail inválido.",
     passwordRequired: "Informe sua senha.",
-    passwordMin: "A senha deve ter ao menos 8 caracteres.",
+    passwordMin: "A senha deve ter ao menos 12 caracteres. Uma frase longa funciona bem.",
+    passwordMax: "A senha deve ter no máximo 128 caracteres.",
     confirmPasswordMismatch: "As senhas não coincidem.",
   },
   // Tradução dos códigos de erro estáveis da API para mensagens naturais.
@@ -403,6 +404,11 @@ export const ptBR = {
     SESSION_REVOKED: "Sua sessão foi encerrada. Entre novamente.",
     RATE_LIMITED: "Muitas tentativas. Aguarde um instante e tente novamente.",
     INTERNAL_ERROR: "Erro interno. Tente novamente mais tarde.",
+    // Phase 11 — hardening HTTP e sessões
+    PAYLOAD_TOO_LARGE: "Os dados enviados são grandes demais.",
+    UNSUPPORTED_MEDIA_TYPE: "Formato de dados não suportado.",
+    ORIGIN_NOT_ALLOWED: "Esta origem não tem permissão para acessar o serviço.",
+    SESSION_NOT_FOUND: "Sessão não encontrada.",
     NETWORK: "Não foi possível conectar ao servidor.",
     // Phase 2 — Grupos de Confiança
     GROUP_NOT_FOUND: "Grupo não encontrado.",
