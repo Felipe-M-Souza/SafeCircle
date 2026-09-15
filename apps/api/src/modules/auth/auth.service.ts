@@ -1,9 +1,16 @@
 import { and, eq, isNull } from "drizzle-orm";
+import type { FastifyBaseLogger } from "fastify";
 import type { Database } from "../../infrastructure/database/client.js";
-import { authSessions, users } from "../../infrastructure/database/schema.js";
+import {
+  authRefreshTokenHistory,
+  authSessions,
+  users,
+} from "../../infrastructure/database/schema.js";
+import { authRefreshTotal, refreshReuseDetectedTotal } from "../../observability/metrics.js";
 import { enqueueAudit, type DomainActionOptions } from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { hashPassword, verifyPassword } from "./password.js";
+import { enforceSessionLimit } from "./sessions.service.js";
 import { generateRefreshToken, hashRefreshToken, type AccessTokenClaims } from "./tokens.js";
 import type { LoginInput, RegisterInput } from "./auth.schemas.js";
 
@@ -11,6 +18,9 @@ export interface AuthContext {
   db: Database;
   refreshTokenTtlDays: number;
   signAccessToken: (claims: AccessTokenClaims) => string;
+  /** Chamado depois do commit quando uma sessão é revogada por segurança. */
+  onSessionRevoked?: (sessionId: string) => void;
+  log?: FastifyBaseLogger;
 }
 
 export interface PublicUser {
@@ -25,6 +35,15 @@ export interface AuthResult {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * Janela em que um refresh token recém-rotacionado pode reaparecer sem ser
+ * tratado como roubo (Phase 11). Dois refreshes simultâneos do mesmo aparelho
+ * (rede instável, duas abas) são corrida benigna: o perdedor recebe 401 e usa
+ * o token novo. Fora da janela, o reaparecimento é reuso — a sessão inteira
+ * é revogada.
+ */
+export const REFRESH_REUSE_GRACE_MS = 10_000;
 
 // Hash "dummy" para equalizar o tempo de resposta quando o usuário não existe,
 // dificultando enumeração por timing. Calculado uma única vez sob demanda.
@@ -56,8 +75,8 @@ function isUniqueViolation(error: unknown): boolean {
   return hasPgCode(cause, "23505");
 }
 
-function refreshExpiry(days: number): Date {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+function refreshExpiry(days: number, from: Date = new Date()): Date {
+  return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 async function createSession(
@@ -67,16 +86,22 @@ async function createSession(
 ): Promise<{ sessionId: string; refreshToken: string }> {
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
+  const now = new Date();
 
   // Phase 10: sessão e auditoria no MESMO COMMIT — nem o refresh token nem o
   // hash entram na outbox; o payload leva apenas IDs.
+  // Phase 11: o limite de sessões é aplicado na mesma transação, antes do
+  // INSERT, para que nunca exista um instante com mais sessões que o teto.
   const session = await ctx.db.transaction(async (tx) => {
+    await enforceSessionLimit(tx, userId, now);
+
     const [row] = await tx
       .insert(authSessions)
       .values({
         userId,
         refreshTokenHash,
-        expiresAt: refreshExpiry(ctx.refreshTokenTtlDays),
+        expiresAt: refreshExpiry(ctx.refreshTokenTtlDays, now),
+        lastUsedAt: now,
       })
       .returning({ id: authSessions.id });
 
@@ -167,11 +192,84 @@ export async function loginUser(
   };
 }
 
+/**
+ * Um token que não é o atual de nenhuma sessão pode ser um token **antigo**
+ * desta mesma sessão. Se for, alguém está apresentando uma credencial que já
+ * foi trocada — o dono legítimo tem o token novo. Fora da janela de corrida
+ * benigna, isso é reuso: a sessão é revogada e o fato auditado. A resposta ao
+ * chamador é a mesma genérica de token inválido — não confirmamos nada.
+ */
+async function handlePossibleReuse(
+  ctx: AuthContext,
+  presentedHash: string,
+  now: Date,
+  options: DomainActionOptions,
+): Promise<never> {
+  const [history] = await ctx.db
+    .select({
+      sessionId: authRefreshTokenHistory.sessionId,
+      rotatedAt: authRefreshTokenHistory.rotatedAt,
+      userId: authSessions.userId,
+      revokedAt: authSessions.revokedAt,
+    })
+    .from(authRefreshTokenHistory)
+    .innerJoin(authSessions, eq(authSessions.id, authRefreshTokenHistory.sessionId))
+    .where(eq(authRefreshTokenHistory.tokenHash, presentedHash))
+    .limit(1);
+
+  if (!history) {
+    authRefreshTotal.inc({ result: "invalid" });
+    throw errors.invalidRefreshToken();
+  }
+
+  const withinGrace = now.getTime() - history.rotatedAt.getTime() < REFRESH_REUSE_GRACE_MS;
+  if (withinGrace) {
+    // Corrida benigna: não punimos, só recusamos este token.
+    authRefreshTotal.inc({ result: "invalid" });
+    throw errors.invalidRefreshToken();
+  }
+
+  refreshReuseDetectedTotal.inc();
+  authRefreshTotal.inc({ result: "reuse_detected" });
+
+  if (!history.revokedAt) {
+    await ctx.db.transaction(async (tx) => {
+      await tx
+        .update(authSessions)
+        .set({ revokedAt: now, revokedReason: "REFRESH_REUSE", updatedAt: now })
+        .where(and(eq(authSessions.id, history.sessionId), isNull(authSessions.revokedAt)));
+      // O ator NÃO é confirmado: quem apresentou o token pode ser o atacante.
+      await enqueueAudit(tx, "AUDIT_AUTH_REFRESH_REUSE_DETECTED", {
+        aggregateType: "SESSION",
+        aggregateId: history.sessionId,
+        actorUserId: null,
+        targetType: "SESSION",
+        targetId: history.sessionId,
+        outcome: "FAILED",
+        requestId: options.requestId ?? null,
+      });
+    });
+    ctx.onSessionRevoked?.(history.sessionId);
+  }
+
+  ctx.log?.warn(
+    {
+      event: "auth_refresh_reuse_detected",
+      sessionId: history.sessionId,
+      userId: history.userId,
+    },
+    "Refresh token já rotacionado foi reapresentado; sessão revogada",
+  );
+  throw errors.invalidRefreshToken();
+}
+
 export async function refreshSession(
   ctx: AuthContext,
   rawRefreshToken: string,
+  options: DomainActionOptions = {},
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const currentHash = hashRefreshToken(rawRefreshToken);
+  const now = new Date();
 
   const [session] = await ctx.db
     .select()
@@ -180,40 +278,58 @@ export async function refreshSession(
     .limit(1);
 
   if (!session) {
-    throw errors.invalidRefreshToken();
+    return handlePossibleReuse(ctx, currentHash, now, options);
   }
   if (session.revokedAt) {
+    authRefreshTotal.inc({ result: "revoked" });
     throw errors.sessionRevoked();
   }
-  if (session.expiresAt.getTime() <= Date.now()) {
+  if (session.expiresAt.getTime() <= now.getTime()) {
+    authRefreshTotal.inc({ result: "expired" });
     throw errors.sessionExpired();
   }
 
   const newRefreshToken = generateRefreshToken();
   const newHash = hashRefreshToken(newRefreshToken);
+  const expiresAt = refreshExpiry(ctx.refreshTokenTtlDays, now);
 
   // Compare-and-swap: a rotação só ocorre se o hash atual ainda for válido.
-  // Garante uso único do refresh token, mesmo sob concorrência.
-  const rotated = await ctx.db
-    .update(authSessions)
-    .set({
-      refreshTokenHash: newHash,
-      expiresAt: refreshExpiry(ctx.refreshTokenTtlDays),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(authSessions.id, session.id),
-        eq(authSessions.refreshTokenHash, currentHash),
-        isNull(authSessions.revokedAt),
-      ),
-    )
-    .returning({ id: authSessions.id });
+  // Garante uso único do refresh token, mesmo sob concorrência. O hash antigo
+  // vai para o histórico NA MESMA transação — ou a rotação e o rastro existem,
+  // ou nenhum dos dois.
+  const rotated = await ctx.db.transaction(async (tx) => {
+    const updated = await tx
+      .update(authSessions)
+      .set({
+        refreshTokenHash: newHash,
+        expiresAt,
+        lastUsedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(authSessions.id, session.id),
+          eq(authSessions.refreshTokenHash, currentHash),
+          isNull(authSessions.revokedAt),
+        ),
+      )
+      .returning({ id: authSessions.id });
+    if (updated.length === 0) return false;
 
-  if (rotated.length === 0) {
+    await tx
+      .insert(authRefreshTokenHistory)
+      .values({ sessionId: session.id, tokenHash: currentHash, rotatedAt: now, expiresAt })
+      .onConflictDoNothing({ target: authRefreshTokenHistory.tokenHash });
+    return true;
+  });
+
+  if (!rotated) {
+    // Perdeu a corrida para outro refresh do mesmo token: benigno, sem punição.
+    authRefreshTotal.inc({ result: "invalid" });
     throw errors.invalidRefreshToken();
   }
 
+  authRefreshTotal.inc({ result: "success" });
   const accessToken = ctx.signAccessToken({ sub: session.userId, sid: session.id });
   return { accessToken, refreshToken: newRefreshToken };
 }
@@ -224,26 +340,32 @@ export async function logout(
   options: DomainActionOptions = {},
 ): Promise<void> {
   const currentHash = hashRefreshToken(rawRefreshToken);
+  const now = new Date();
   // Idempotente: revoga a sessão correspondente se ainda estiver ativa.
-  await ctx.db.transaction(async (tx) => {
+  const revokedSessionId = await ctx.db.transaction(async (tx) => {
     const revoked = await tx
       .update(authSessions)
-      .set({ revokedAt: new Date(), updatedAt: new Date() })
+      .set({ revokedAt: now, revokedReason: "LOGOUT", updatedAt: now })
       .where(and(eq(authSessions.refreshTokenHash, currentHash), isNull(authSessions.revokedAt)))
-      .returning({ userId: authSessions.userId });
+      .returning({ id: authSessions.id, userId: authSessions.userId });
 
     // Só audita quando havia sessão ativa: logout repetido não polui a trilha.
-    const userId = revoked[0]?.userId;
-    if (userId) {
+    const session = revoked[0];
+    if (session) {
       await enqueueAudit(tx, "AUDIT_AUTH_LOGOUT", {
         aggregateType: "SESSION",
-        aggregateId: userId,
-        actorUserId: userId,
+        aggregateId: session.userId,
+        actorUserId: session.userId,
         targetType: "SESSION",
+        targetId: session.id,
         requestId: options.requestId ?? null,
       });
     }
+    return session?.id ?? null;
   });
+  if (revokedSessionId) {
+    ctx.onSessionRevoked?.(revokedSessionId);
+  }
 }
 
 export async function getMe(ctx: AuthContext, userId: string): Promise<PublicUser> {

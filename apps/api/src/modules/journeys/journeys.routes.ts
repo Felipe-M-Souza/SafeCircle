@@ -59,7 +59,7 @@ export async function journeysRoutes(
 
   app.post(
     "/journeys",
-    { config: { rateLimit: journeyRateLimit(options.appConfig.nodeEnv) } },
+    { config: { rateLimit: journeyRateLimit(options.appConfig.rateLimitProfile) } },
     async (request, reply) => {
       const input = createJourneySchema.parse(request.body);
       const idempotencyKey = parseIdempotencyKey(request.headers["idempotency-key"]);

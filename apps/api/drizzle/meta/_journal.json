@@ -71,6 +71,13 @@
       "when": 1789391418992,
       "tag": "0009_transactional_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789511328874,
+      "tag": "0010_security_privacy_hardening",
+      "breakpoints": true
     }
   ]
 }

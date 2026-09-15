@@ -29,6 +29,11 @@ export const AUDIT_EVENT_TYPES = [
   "AUTH_LOGIN_SUCCEEDED",
   "AUTH_LOGIN_FAILED",
   "AUTH_LOGOUT",
+  // Sessões e privacidade (Phase 11)
+  "AUTH_SESSION_REVOKED",
+  "AUTH_OTHER_SESSIONS_REVOKED",
+  "AUTH_REFRESH_REUSE_DETECTED",
+  "PRIVACY_EXPORT_REQUESTED",
   // Grupos
   "GROUP_CREATED",
   "GROUP_MEMBER_REMOVED",
@@ -85,6 +90,8 @@ export const ALLOWED_METADATA_KEYS = [
   "durationMinutes",
   "hasDestination",
   "liveLocationEnabled",
+  // Phase 11: quantas sessões uma revogação em lote atingiu (número, nunca ids).
+  "revokedCount",
 ] as const;
 
 export type AuditMetadataKey = (typeof ALLOWED_METADATA_KEYS)[number];

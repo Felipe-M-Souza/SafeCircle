@@ -402,6 +402,56 @@ export const outboxOldestPendingAge = register(
 );
 
 // ------------------------------------------------------------------
+// Segurança (Phase 11) — só contagens; nunca e-mail, IP ou userId em label
+// ------------------------------------------------------------------
+
+/** `result`: success | invalid_credentials | rate_limited. */
+export const authLoginAttemptsTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}auth_login_attempts_total`,
+    help: "Tentativas de login, por resultado.",
+    labelNames: ["result"] as const,
+  }),
+);
+
+/** `result`: success | invalid | expired | revoked | reuse_detected. */
+export const authRefreshTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}auth_refresh_total`,
+    help: "Rotações de refresh token, por resultado.",
+    labelNames: ["result"] as const,
+  }),
+);
+
+/** `route_group`: auth | privacy | realtime | checkins | journeys | groups | other. */
+export const securityRateLimitedTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}security_rate_limited_total`,
+    help: "Requisições recusadas por rate limit, por grupo de rota.",
+    labelNames: ["route_group"] as const,
+  }),
+);
+
+export const refreshReuseDetectedTotal = register(
+  new Counter({
+    name: `${METRICS_PREFIX}refresh_reuse_detected_total`,
+    help: "Reutilizações de refresh token já rotacionado (sessão revogada em resposta).",
+  }),
+);
+
+const ROUTE_GROUPS = ["auth", "privacy", "realtime", "checkins", "journeys", "groups"] as const;
+
+/** Grupo de rota para métricas de segurança, derivado do prefixo do template. */
+export function routeGroupLabel(routeTemplate: string | undefined): string {
+  if (!routeTemplate) return "other";
+  if (routeTemplate.startsWith("/me/privacy")) return "privacy";
+  for (const group of ROUTE_GROUPS) {
+    if (routeTemplate === `/${group}` || routeTemplate.startsWith(`/${group}/`)) return group;
+  }
+  return "other";
+}
+
+// ------------------------------------------------------------------
 // Utilitários
 // ------------------------------------------------------------------
 

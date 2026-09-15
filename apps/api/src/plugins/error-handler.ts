@@ -1,8 +1,9 @@
 import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
+import { routeGroupLabel, securityRateLimitedTotal } from "../observability/metrics.js";
 import { newErrorId } from "../observability/request-context.js";
-import { AppError, type ErrorCode } from "../shared/errors.js";
+import { AppError, errors, type ErrorCode } from "../shared/errors.js";
 
 interface ErrorResponse {
   code: ErrorCode;
@@ -71,6 +72,7 @@ export const errorHandlerPlugin = fp(
 
       // @fastify/rate-limit sinaliza 429.
       if (statusCode === 429) {
+        securityRateLimitedTotal.inc({ route_group: routeGroupLabel(request.routeOptions?.url) });
         request.log.warn({ event: "request_rate_limited" }, "Requisição limitada por rate limit");
         return reply.status(429).send({
           code: "RATE_LIMITED",
@@ -87,9 +89,27 @@ export const errorHandlerPlugin = fp(
           .send({ code: "UNAUTHORIZED", message: "Não autenticado.", requestId });
       }
 
-      // Corpo malformado / content-type ou tamanho inválidos (parser do Fastify):
-      // erro do cliente, nunca 500 — e sem ecoar o corpo recebido.
-      if (statusCode === 400 || statusCode === 413 || statusCode === 415) {
+      // Corpo acima do limite (Phase 11): 413 explícito, sem ecoar o corpo.
+      if (statusCode === 413) {
+        request.log.warn({ event: "request_payload_too_large" }, "Corpo acima do limite");
+        const tooLarge = errors.payloadTooLarge();
+        return reply
+          .status(tooLarge.statusCode)
+          .send({ code: tooLarge.code, message: tooLarge.message, requestId });
+      }
+
+      // Content-Type que a API não aceita: 415 explícito.
+      if (statusCode === 415) {
+        request.log.debug({ event: "request_unsupported_media_type" }, "Content-Type recusado");
+        const unsupported = errors.unsupportedMediaType();
+        return reply
+          .status(unsupported.statusCode)
+          .send({ code: unsupported.code, message: unsupported.message, requestId });
+      }
+
+      // Corpo malformado (parser do Fastify): erro do cliente, nunca 500 — e
+      // sem ecoar o corpo recebido.
+      if (statusCode === 400) {
         request.log.debug({ event: "request_malformed", statusCode }, "Requisição malformada");
         return reply.status(400).send({
           code: "VALIDATION_ERROR",

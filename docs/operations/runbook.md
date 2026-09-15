@@ -102,6 +102,9 @@ Todas as métricas usam o prefixo `safecircle_`. Séries úteis no plantão:
 | `safecircle_push_failures_total`           | Falhas de push                         |
 | `safecircle_scheduler_runs_total`          | Schedulers rodando                     |
 | `safecircle_audit_failures_total`          | Auditoria falhando                     |
+| `safecircle_auth_login_attempts_total`     | Logins por resultado (ver §15.3)       |
+| `safecircle_refresh_reuse_detected_total`  | Reuso de refresh token (ver §15.2)     |
+| `safecircle_security_rate_limited_total`   | Rate limit por grupo de rota           |
 
 ---
 
@@ -389,6 +392,8 @@ grep -E '(latitude|longitude|passwordHash|ExponentPushToken|Bearer )' /var/log/s
 ## 11. Comandos de manutenção
 
 Todos leem `DATABASE_URL` do ambiente. Devem rodar periodicamente (cron diário).
+Desde a Phase 11 basta agendar `pnpm privacy:cleanup`: ele encadeia as demais
+políticas e nomeia a etapa que falhar (ver §15.8).
 
 ```bash
 pnpm location:cleanup   # localização de alertas encerrados há mais de 30 dias
@@ -396,6 +401,8 @@ pnpm checkin:cleanup    # check-ins finalizados há mais de 90 dias
 pnpm journey:cleanup    # localização de trajetos (30 d) e trajetos finalizados (90 d)
 pnpm audit:cleanup      # eventos de auditoria com mais de 180 dias
 pnpm outbox:cleanup     # outbox processada (30 d) e dead-letter (90 d)
+pnpm privacy:cleanup    # TODAS as políticas acima + sessões/refresh (30 d), em uma execução
+pnpm security:audit     # dependências com advisory high/critical (falha o CI)
 ```
 
 Outros:
@@ -424,17 +431,20 @@ pnpm outbox:retry-dead -- --id <uuid>  # reenfileira UM evento DEAD
 
 Rascunho inicial — não há alerting externo configurado nesta fase.
 
-| Sinal                                                         | Ação                            |
-| ------------------------------------------------------------- | ------------------------------- |
-| 5xx acima de 2% por 5 min                                     | Investigar `errorId` recentes   |
-| `/ready` falhando                                             | Tirar do balanceador; ver banco |
-| Scheduler sem execução por mais de 2 intervalos (~30 s)       | Ver §5                          |
-| `safecircle_push_failures_total` muito acima do normal        | Ver §4                          |
-| `safecircle_background_tasks_pending` crescendo continuamente | Ver §6                          |
-| `safecircle_audit_failures_total` > 0                         | Auditoria degradada; ver log    |
-| `safecircle_outbox_oldest_pending_age_seconds` > 60 s         | Ver §7.2                        |
-| `safecircle_outbox_backlog{status="dead"}` > 0                | Ver §7.3                        |
-| `safecircle_outbox_expired_total` subindo                     | Houve outage; ver §7.6          |
+| Sinal                                                                 | Ação                            |
+| --------------------------------------------------------------------- | ------------------------------- |
+| 5xx acima de 2% por 5 min                                             | Investigar `errorId` recentes   |
+| `/ready` falhando                                                     | Tirar do balanceador; ver banco |
+| Scheduler sem execução por mais de 2 intervalos (~30 s)               | Ver §5                          |
+| `safecircle_push_failures_total` muito acima do normal                | Ver §4                          |
+| `safecircle_background_tasks_pending` crescendo continuamente         | Ver §6                          |
+| `safecircle_audit_failures_total` > 0                                 | Auditoria degradada; ver log    |
+| `safecircle_outbox_oldest_pending_age_seconds` > 60 s                 | Ver §7.2                        |
+| `safecircle_outbox_backlog{status="dead"}` > 0                        | Ver §7.3                        |
+| `safecircle_outbox_expired_total` subindo                             | Houve outage; ver §7.6          |
+| `safecircle_refresh_reuse_detected_total` > 0                         | Ver §15.2                       |
+| `safecircle_auth_login_attempts_total{result="rate_limited"}` em pico | Ver §15.3                       |
+| `pnpm security:audit` falhando no CI                                  | Ver §15.6                       |
 
 ## 13. SLOs iniciais (rascunho)
 
@@ -453,6 +463,13 @@ Metas internas de trabalho, **não** garantia contratual:
   Realtime e auditoria são idempotentes; push não é.
 - **Worker da outbox no mesmo processo da API** nesta fase: um pico de tráfego
   concorre com a entrega de efeitos.
+- **Rate limit e freio de login por instância** (ADR 0012): com N réplicas o
+  teto efetivo é N vezes maior.
+- **Sem exclusão de conta** — RELEASE BLOCKER antes das lojas (§15.9, ADR 0012).
+- **Sem troca de senha nem MFA**; enumeração possível via registro (409),
+  limitada por rate limit.
+- **TLS, encryption at rest e backups** são da infraestrutura, não desta API
+  (`docs/security/release-security-checklist.md`).
 - **Ordem de entrega não garantida** entre eventos da outbox. Nenhum efeito
   atual depende de ordem.
 - **Falha de auditoria não desfaz a operação** de negócio, mas desde a Phase 10
@@ -460,3 +477,122 @@ Metas internas de trabalho, **não** garantia contratual:
 - **Localização ao vivo só em primeiro plano** (ADRs 0007, 0009).
 - **Sem tracing distribuído, APM ou dashboards hospedados**: a correlação é por
   `requestId` no log e as métricas são expostas para coleta externa.
+
+---
+
+## 15. Segurança e privacidade
+
+Roteiro completo em [`docs/security/incident-response.md`](../security/incident-response.md);
+aqui, os atalhos de plantão. Prioridade: **SOS > push > realtime > check-in/trajeto
+
+> métricas/auditoria** — conter nunca pode deixar alguém sem pedir ajuda.
+
+### 15.1 Suspeita de takeover de conta
+
+Sinais: usuário relata sessão que não reconhece; `AUTH_REFRESH_REUSE_DETECTED`
+para o usuário; pico de `AUTH_LOGIN_FAILED` seguido de `AUTH_LOGIN_SUCCEEDED`.
+
+1. Peça ao usuário para usar **"Sair dos outros aparelhos"** (o app chama
+   `POST /me/sessions/revoke-others`). Se ele não conseguir, revogue pelo banco:
+
+```sql
+UPDATE auth_sessions
+   SET revoked_at = now(), revoked_reason = 'USER_REVOKED_OTHERS', updated_at = now()
+ WHERE user_id = '<uuid>' AND revoked_at IS NULL;
+```
+
+Efeito imediato: access tokens param de valer na próxima requisição e o
+WebSocket cai (4403). 2. Confira a trilha do usuário: `SELECT event_type, created_at FROM audit_events
+   WHERE actor_user_id = '<uuid>' ORDER BY created_at DESC LIMIT 50`. 3. Não há troca de senha ainda: oriente a não reutilizar a senha em outros
+serviços e registre o caso.
+
+### 15.2 Reuso de refresh token detectado
+
+`safecircle_refresh_reuse_detected_total` subiu, ou o log tem
+`auth_refresh_reuse_detected` com `sessionId`/`userId`.
+
+- A API **já revogou** a sessão (`revoked_reason = 'REFRESH_REUSE'`) e
+  auditou. Não é preciso agir para conter aquela sessão.
+- Verifique se o usuário tem **outras** sessões ativas suspeitas
+  (`GET /me/sessions` pelo próprio usuário, ou consulta ao banco) e, em
+  dúvida, revogue todas (§15.1).
+- Vários usuários ao mesmo tempo indica roubo em massa (aparelhos, proxy
+  malicioso, vazamento de logs). Abra o roteiro de incidente.
+- Um único evento logo após instabilidade de rede pode ser corrida fora da
+  janela de 10 s — o usuário só precisa entrar de novo.
+
+### 15.3 Credential stuffing / força bruta
+
+Sinais: `safecircle_auth_login_attempts_total{result="invalid_credentials"}`
+e `{result="rate_limited"}` em pico; `safecircle_security_rate_limited_total{route_group="auth"}`
+subindo; muitos `AUTH_LOGIN_FAILED`.
+
+- Os freios já atuam: por IP (10/min com backoff) e por conta (5 falhas → 15
+  min). **Não** bloqueie contas manualmente: lockout permanente é uma arma
+  contra a vítima.
+- Os limites são **por instância**: com N réplicas o teto efetivo é N vezes
+  maior. Se insuficiente, reduza `max` em `rate-limit.ts` e faça deploy.
+- Ataque volumétrico é problema de infraestrutura (WAF/L4), não da API.
+
+### 15.4 `/metrics` exposto indevidamente
+
+- Produção não sobe com `METRICS_ENABLED=true` sem `METRICS_TOKEN`; se está
+  exposto, ou o token vazou ou a porta está pública.
+- Rotacione `METRICS_TOKEN` (no coletor e no ambiente) e feche a porta na
+  rede. Se precisar, `METRICS_ENABLED=false` e redeploy.
+- As métricas não contêm dado pessoal (labels de conjunto fechado), mas
+  revelam volume e horários.
+
+### 15.5 Segredo vazado
+
+| Segredo             | Ação                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `JWT_ACCESS_SECRET` | Rotacionar e redeploy. Todo access token morre; o app renova pelo refresh sem o usuário perceber |
+| Credencial do banco | Rotacionar no PostgreSQL e no ambiente; revisar `pg_stat_activity`                               |
+| `METRICS_TOKEN`     | Rotacionar (§15.4)                                                                               |
+| `EXPO_ACCESS_TOKEN` | Revogar na Expo e gerar novo; push fica degradado até o deploy; a outbox reprocessa              |
+
+Segredo que apareceu em commit, issue, chat ou log está **comprometido**,
+mesmo que apagado depois. Produção recusa segredo fraco/placeholder, então um
+valor ruim falha no startup, não em silêncio.
+
+### 15.6 Dependência vulnerável
+
+- `pnpm security:audit` falhando no CI (high/critical) bloqueia o merge — é o
+  comportamento esperado.
+- Atualize a dependência. Só se não for possível, registre um waiver em
+  [`docs/security/vulnerability-waivers.md`](../security/vulnerability-waivers.md)
+  com impacto, mitigação e **data de expiração**. Sem waiver permanente.
+- Alertas do Dependabot e do CodeQL ficam na aba Security do repositório.
+
+### 15.7 Exportação de dados (`GET /me/privacy/export`)
+
+- É do próprio usuário, autenticada, com rate limit de 5 por hora por IP.
+- O conteúdo **não é logado**; só o evento `PRIVACY_EXPORT_REQUESTED` vai para
+  a auditoria. Muitos eventos desses para um usuário em pouco tempo, junto
+  com login estranho, é sinal de takeover (§15.1).
+- Não existe exportação "por outro usuário" nem por operador via HTTP.
+
+### 15.8 Retenção (`pnpm privacy:cleanup`)
+
+```bash
+pnpm privacy:cleanup      # encadeia localização, check-ins, trajetos, auditoria, outbox e autenticação
+```
+
+- Cron diário. Nunca apaga ACTIVE, PENDING ou PROCESSING.
+- Saída por categoria e quantidade; exit code ≠ 0 nomeia a etapa que falhou
+  e as demais rodam mesmo assim.
+- **Durante um incidente, não rode**: apaga evidência. Espere o dump do §2 do
+  roteiro de incidentes.
+- Prazos em [`docs/privacy/retention-policy.md`](../privacy/retention-policy.md).
+
+### 15.9 RELEASE BLOCKER — exclusão de conta
+
+> RELEASE BLOCKER — implementar fluxo completo de exclusão de conta antes da
+> publicação nas lojas.
+
+Não existe `DELETE /me`. Um pedido de exclusão hoje **não pode** ser atendido
+com um `DELETE FROM users`: grupos onde a pessoa é OWNER ficariam sem dono,
+alertas ativos sumiriam sem aviso e a outbox pendente falharia. Registre o
+pedido e escale; a decisão de produto (transferência de ownership, carência,
+bloqueio com SOS ativo) está mapeada no ADR 0012 §21.

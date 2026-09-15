@@ -28,7 +28,9 @@
     "outbox:status": "pnpm --filter @safecircle/api run outbox:status",
     "outbox:list-dead": "pnpm --filter @safecircle/api run outbox:list-dead",
     "outbox:retry-dead": "pnpm --filter @safecircle/api run outbox:retry-dead",
-    "outbox:cleanup": "pnpm --filter @safecircle/api run outbox:cleanup"
+    "outbox:cleanup": "pnpm --filter @safecircle/api run outbox:cleanup",
+    "privacy:cleanup": "pnpm --filter @safecircle/api run privacy:cleanup",
+    "security:audit": "pnpm audit --audit-level high"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

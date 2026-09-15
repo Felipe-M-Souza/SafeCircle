@@ -9,6 +9,13 @@ const v = strings.validation;
 // Regex simples e suficiente para feedback de UX (não substitui o backend).
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Política de senha espelhada da API (Phase 11): comprimento, sem regras de
+ * composição. Vale para senhas novas; o login não valida comprimento mínimo.
+ */
+export const PASSWORD_MIN_LENGTH = 12;
+export const PASSWORD_MAX_LENGTH = 128;
+
 export function validateEmail(email: string): string | null {
   const value = email.trim();
   if (!value) return v.emailRequired;
@@ -36,8 +43,10 @@ export function validateRegister(
   if (emailError) errors.email = emailError;
   if (!password) {
     errors.password = v.passwordRequired;
-  } else if (password.length < 8) {
+  } else if (password.length < PASSWORD_MIN_LENGTH) {
     errors.password = v.passwordMin;
+  } else if (password.length > PASSWORD_MAX_LENGTH) {
+    errors.password = v.passwordMax;
   }
   if (confirmPassword !== password) {
     errors.confirmPassword = v.confirmPasswordMismatch;
