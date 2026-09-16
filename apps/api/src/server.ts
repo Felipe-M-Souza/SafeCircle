@@ -27,6 +27,7 @@ async function main(): Promise<void> {
     environment: config.nodeEnv,
     version: config.appVersion,
     gitSha: config.gitSha,
+    buildDate: config.buildDate,
   };
 
   app.log.info({ event: "application_starting", ...buildInfo }, "Iniciando SafeCircle API");
