@@ -72,9 +72,19 @@ describe("E2E outbox: worker desligado, restart, recuperação", () => {
 
     // Fase 2: "deploy" — a API cai e volta com o worker ligado.
     await running.stop();
+    const stoppedLogs = running.logs();
     running = null;
     const closed = await socketBefore.waitForClose(15_000);
-    expect([1001, 1006]).toContain(closed.code); // shutdown limpo ou conexão perdida
+    if (process.platform === "win32") {
+      // child.kill() no Windows não entrega SIGTERM: o processo morre abrupto.
+      expect([1001, 1006]).toContain(closed.code);
+    } else {
+      // SIGTERM → graceful shutdown: socket fechado com 1001 e logs estruturados.
+      expect(closed.code).toBe(1001);
+      expect(closed.reason).toBe("SERVER_SHUTDOWN");
+      expect(stoppedLogs).toContain("shutdown_started");
+      expect(stoppedLogs).toContain("shutdown_completed");
+    }
 
     running = await startApi({ port: PORT, databaseUrl });
     expect(running.logs()).toContain("outbox_worker_started");

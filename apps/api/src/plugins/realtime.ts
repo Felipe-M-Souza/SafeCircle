@@ -39,15 +39,23 @@ export const REALTIME_MAX_PAYLOAD_BYTES = 1024;
  * - A conexão é encerrada quando o access token expira (4401) ou quando a
  *   sessão é revogada (4403): o cliente renova via REST e reconecta.
  * - Server-push only; `maxPayload` pequeno — frame maior é fechado pelo `ws`.
- * - Shutdown fecha todas as conexões (1001).
+ * - Shutdown fecha todas as conexões com 1001 (hook preClose, antes do
+ *   fechamento sem status do @fastify/websocket).
  */
 export const realtimePlugin = fp(
   async (app: FastifyInstance, options: RealtimePluginOptions) => {
+    const hub = options.hub ?? new RealtimeHub({ log: app.log });
+
+    // Registrado ANTES do @fastify/websocket: o preClose padrão do plugin fecha
+    // os clientes sem status (o peer vê 1005). Este hook corre primeiro e fecha
+    // cada conexão com 1001/SERVER_SHUTDOWN, como o contrato do cliente espera.
+    app.addHook("preClose", async () => {
+      hub.closeAll();
+    });
+
     await app.register(fastifyWebsocket, {
       options: { maxPayload: REALTIME_MAX_PAYLOAD_BYTES },
     });
-
-    const hub = options.hub ?? new RealtimeHub({ log: app.log });
     app.decorate("realtimeHub", hub);
     app.decorate("realtime", new HubRealtimePublisher(app.db, hub, app.log));
 
