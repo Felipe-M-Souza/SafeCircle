@@ -63,6 +63,12 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d61985af-730f-4bb3-91ba-92c22abd57e4"
+      }
+    },
+    "owner": "felipe_melo_souza"
   }
 }
