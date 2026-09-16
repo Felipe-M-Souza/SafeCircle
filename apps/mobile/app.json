@@ -33,7 +33,12 @@
         "android.permission.BLUETOOTH_CONNECT"
       ],
       "usesCleartextTraffic": false,
-      "allowBackup": false
+      "allowBackup": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
     "web": {
       "bundler": "metro"
