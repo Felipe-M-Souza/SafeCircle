@@ -37,6 +37,7 @@
     "e2e:mobile": "pnpm --filter @safecircle/mobile run e2e",
     "smoke:api": "pnpm --filter @safecircle/api run smoke",
     "release:blockers": "node scripts/release-blockers-check.mjs",
+    "brand:assets": "node scripts/brand-assets.mjs",
     "release:check": "node scripts/release-check.mjs"
   },
   "devDependencies": {
@@ -44,6 +45,7 @@
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.3",
+    "sharp": "^0.35.4",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.10.0"
   },
