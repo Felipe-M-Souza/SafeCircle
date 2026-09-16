@@ -32,7 +32,7 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate \
   && apk add --no-cache wget
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/package.json
 RUN pnpm install --frozen-lockfile --prod --filter @safecircle/api \
   && pnpm store prune
