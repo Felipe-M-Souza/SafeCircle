@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { BrandLogo } from "../components/BrandLogo";
 import { useAuth } from "../auth/AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
@@ -52,7 +53,7 @@ export function LoginScreen({
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <Text style={styles.brand}>{strings.common.appName}</Text>
+          <BrandLogo />
           <Text style={styles.title}>{t.title}</Text>
 
           <TextField
@@ -111,7 +112,6 @@ const styles = StyleSheet.create({
     padding: 28,
     gap: 16,
   },
-  brand: { color: colors.primaryText, fontSize: 28, fontWeight: "800", textAlign: "center" },
   title: { color: colors.mutedText, fontSize: 16, textAlign: "center", marginBottom: 4 },
   formError: { color: colors.danger, fontSize: 14, textAlign: "center" },
   footer: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 4 },
