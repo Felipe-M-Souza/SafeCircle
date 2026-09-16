@@ -24,6 +24,15 @@ import type { OutboxHandlerContext } from "./index.js";
  * sobreviveu ao commit — não há mais por que aceitar perdê-la.
  */
 
+/** Violação de chave estrangeira do PostgreSQL (23503), direta ou embrulhada pelo Drizzle. */
+function isForeignKeyViolation(error: unknown): boolean {
+  const code = (value: unknown): unknown =>
+    typeof value === "object" && value !== null && "code" in value
+      ? (value as { code?: unknown }).code
+      : undefined;
+  return code(error) === "23503" || code((error as { cause?: unknown } | null)?.cause) === "23503";
+}
+
 /** `AUDIT_CHECKIN_MARKED_SAFE` → `CHECKIN_MARKED_SAFE` (tipo da Phase 9). */
 function domainEventType(eventType: AuditOutboxEventType): AuditEventType {
   return eventType.slice("AUDIT_".length) as AuditEventType;
@@ -38,15 +47,15 @@ export async function handleAuditEvent(
   const domainType = domainEventType(eventType);
   const outcome = payload.outcome ?? "SUCCEEDED";
 
-  try {
-    const inserted = await ctx.db
+  const insert = (actorUserId: string | null, groupId: string | null) =>
+    ctx.db
       .insert(auditEvents)
       .values({
         eventType: domainType,
-        actorUserId: payload.actorUserId ?? null,
+        actorUserId,
         targetType: payload.targetType ?? null,
         targetId: payload.targetId ?? null,
-        groupId: payload.groupId ?? null,
+        groupId,
         outcome,
         requestId: isValidRequestId(requestId) ? requestId : null,
         // Allow-list aplicada de novo aqui: defesa em profundidade caso um
@@ -56,6 +65,18 @@ export async function handleAuditEvent(
       })
       .onConflictDoNothing({ target: auditEvents.sourceOutboxEventId })
       .returning({ id: auditEvents.id });
+
+  try {
+    let inserted: Array<{ id: string }>;
+    try {
+      inserted = await insert(payload.actorUserId ?? null, payload.groupId ?? null);
+    } catch (error) {
+      // Phase 12: o ator ou o grupo podem ter sido apagados entre o commit e a
+      // entrega (exclusão de conta). O fato continua valendo — a trilha grava
+      // o evento anonimizado, como faria o SET NULL da FK numa linha existente.
+      if (!isForeignKeyViolation(error)) throw error;
+      inserted = await insert(null, null);
+    }
 
     // Sem linha devolvida = já existia (reprocessamento): sucesso, sem duplicar.
     if (inserted.length > 0) {

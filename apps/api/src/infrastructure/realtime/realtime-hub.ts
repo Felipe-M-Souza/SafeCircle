@@ -193,6 +193,16 @@ export class RealtimeHub {
    * quando a sessão é revogada: um token roubado não continua ouvindo eventos.
    * Devolve quantas conexões foram fechadas.
    */
+  /** Fecha todas as conexões de um usuário (Phase 12: conta excluída). */
+  closeByUser(userId: string, code: number, reason: string): number {
+    let closed = 0;
+    for (const id of [...(this.byUser.get(userId) ?? [])]) {
+      this.close(id, code, reason);
+      closed += 1;
+    }
+    return closed;
+  }
+
   closeBySession(sessionId: string, code: number, reason: string): number {
     let closed = 0;
     for (const [id, connection] of [...this.connections]) {

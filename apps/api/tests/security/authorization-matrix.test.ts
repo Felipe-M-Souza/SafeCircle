@@ -177,6 +177,14 @@ const ENDPOINTS: Endpoint[] = [
     notFoundCode: "GROUP_NOT_FOUND",
     memberDenied: { status: 403, code: "INSUFFICIENT_GROUP_ROLE" },
   },
+  {
+    name: "transferir propriedade",
+    method: "POST",
+    url: (c) => `/groups/${c.groupId}/transfer-ownership`,
+    body: (c) => ({ userId: c.admin.userId }),
+    notFoundCode: "GROUP_NOT_FOUND",
+    memberDenied: { status: 403, code: "INSUFFICIENT_GROUP_ROLE" },
+  },
   // --- Convites ---
   {
     name: "criar convite",

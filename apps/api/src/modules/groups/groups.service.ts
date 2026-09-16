@@ -9,6 +9,7 @@ import {
 import {
   enqueueAudit,
   enqueueMembershipChangedEffects,
+  enqueueRealtime,
   type DomainActionOptions,
 } from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
@@ -231,6 +232,66 @@ export async function removeMember(
       metadata: { source: "admin" },
       requestId: options.requestId ?? null,
     });
+  });
+}
+
+/**
+ * Transfere a propriedade do grupo para outro membro (Phase 12).
+ *
+ * Existe para que uma pessoa possa sair de vez (excluir a conta) sem precisar
+ * expulsar a própria família do grupo. Só o OWNER transfere; o alvo precisa
+ * ser membro e não pode ser o próprio OWNER. O antigo dono vira ADMIN — o
+ * grupo continua sendo dele para todos os efeitos práticos, exceto a
+ * propriedade. Tudo em uma transação: o índice parcial "um OWNER por grupo"
+ * exige rebaixar antes de promover.
+ */
+export async function transferOwnership(
+  db: Database,
+  actorUserId: string,
+  groupId: string,
+  targetUserId: string,
+  options: DomainActionOptions = {},
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await requireGroupRole(tx, groupId, actorUserId, ["OWNER"]);
+    if (targetUserId === actorUserId) {
+      throw errors.ownershipTransferTargetInvalid();
+    }
+    const targetRole = await findMembershipRole(tx, groupId, targetUserId);
+    if (!targetRole) {
+      throw errors.memberNotFound();
+    }
+
+    const now = new Date();
+    await tx
+      .update(groupMemberships)
+      .set({ role: "ADMIN", updatedAt: now })
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, actorUserId)));
+    await tx
+      .update(groupMemberships)
+      .set({ role: "OWNER", updatedAt: now })
+      .where(and(eq(groupMemberships.groupId, groupId), eq(groupMemberships.userId, targetUserId)));
+
+    await enqueueAudit(tx, "AUDIT_GROUP_OWNERSHIP_TRANSFERRED", {
+      aggregateType: "GROUP",
+      aggregateId: groupId,
+      groupId,
+      actorUserId,
+      targetType: "GROUP_MEMBERSHIP",
+      targetId: targetUserId,
+      metadata: { role: "OWNER", previousRole: targetRole },
+      requestId: options.requestId ?? null,
+    });
+    // Os dois envolvidos veem o papel mudar sem precisar recarregar.
+    for (const userId of [actorUserId, targetUserId]) {
+      await enqueueRealtime(tx, "REALTIME_GROUP_MEMBERSHIP_CHANGED", {
+        aggregateType: "GROUP",
+        aggregateId: groupId,
+        groupId,
+        requestId: options.requestId ?? null,
+        payload: { groupId, targetUserId: userId, userId },
+      });
+    }
   });
 }
 

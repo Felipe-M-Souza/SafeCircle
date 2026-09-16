@@ -21,6 +21,10 @@ export type ErrorCode =
   | "UNSUPPORTED_MEDIA_TYPE"
   | "ORIGIN_NOT_ALLOWED"
   | "SESSION_NOT_FOUND"
+  // Phase 12 — exclusão de conta e transferência de propriedade
+  | "ACCOUNT_DELETION_BLOCKED_BY_GROUP_OWNERSHIP"
+  | "ACCOUNT_DELETION_BLOCKED_BY_ACTIVE_RESOURCES"
+  | "OWNERSHIP_TRANSFER_TARGET_INVALID"
   // Phase 2 — Grupos de Confiança
   | "GROUP_NOT_FOUND"
   | "GROUP_NAME_INVALID"
@@ -101,6 +105,28 @@ export const errors = {
     new AppError("UNSUPPORTED_MEDIA_TYPE", 415, "Tipo de conteúdo não suportado."),
   originNotAllowed: () => new AppError("ORIGIN_NOT_ALLOWED", 403, "Origem não permitida."),
   sessionNotFound: () => new AppError("SESSION_NOT_FOUND", 404, "Sessão não encontrada."),
+
+  // Phase 12 — exclusão de conta e transferência de propriedade
+  accountDeletionBlockedByGroupOwnership: (details: unknown) =>
+    new AppError(
+      "ACCOUNT_DELETION_BLOCKED_BY_GROUP_OWNERSHIP",
+      409,
+      "Transfira a propriedade dos seus grupos com outros membros antes de excluir a conta.",
+      details,
+    ),
+  accountDeletionBlockedByActiveResources: (details: unknown) =>
+    new AppError(
+      "ACCOUNT_DELETION_BLOCKED_BY_ACTIVE_RESOURCES",
+      409,
+      "Encerre seus alertas, check-ins e trajetos em andamento antes de excluir a conta.",
+      details,
+    ),
+  ownershipTransferTargetInvalid: () =>
+    new AppError(
+      "OWNERSHIP_TRANSFER_TARGET_INVALID",
+      400,
+      "A propriedade só pode ser transferida para outro membro do grupo.",
+    ),
 
   // Phase 2 — Grupos de Confiança
   groupNotFound: () => new AppError("GROUP_NOT_FOUND", 404, "Grupo não encontrado."),
