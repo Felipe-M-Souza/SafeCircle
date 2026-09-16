@@ -213,6 +213,12 @@ prazo está listado como pendência consciente em
 
 ### 21. Exclusão de conta: não implementada — RELEASE BLOCKER
 
+> **Atualização (Phase 12):** bloqueador resolvido. A exclusão de conta foi
+> implementada com reautenticação por senha, bloqueio por propriedade de grupo
+> (com transferência de propriedade como saída) e por recursos ativos, e
+> decisão por entidade — ver ADR 0013 §3. O texto abaixo é o registro
+> histórico da decisão desta fase.
+
 Mapeamento das dependências de `DELETE /me`:
 
 | Dependência                       | Comportamento hoje (FK)                      | Problema para exclusão                                                                     |

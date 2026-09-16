@@ -273,12 +273,12 @@ Legenda de risco: **A** alto · **M** médio · **B** baixo.
 
 ### 4.23 Retenção excessiva
 
-| Campo              | Conteúdo                                                                                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Risco              | **M** — dado guardado é dado vazável                                                                                                                                      |
-| Mitigação atual    | Políticas por domínio (30/90/180 d) com scripts separados                                                                                                                 |
-| Mitigação Phase 11 | `pnpm privacy:cleanup` consolida tudo; sessões encerradas e histórico de refresh ganham prazo (30 d); `docs/privacy/retention-policy.md` define o que ainda não tem prazo |
-| Risco residual     | **M** — perfil, grupos, alertas (sem localização), acknowledgements não têm prazo enquanto não há exclusão de conta (**RELEASE BLOCKER**, ver ADR 0012)                   |
+| Campo              | Conteúdo                                                                                                                                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Risco              | **M** — dado guardado é dado vazável                                                                                                                                                                                                                           |
+| Mitigação atual    | Políticas por domínio (30/90/180 d) com scripts separados                                                                                                                                                                                                      |
+| Mitigação Phase 11 | `pnpm privacy:cleanup` consolida tudo; sessões encerradas e histórico de refresh ganham prazo (30 d); `docs/privacy/retention-policy.md` define o que ainda não tem prazo                                                                                      |
+| Risco residual     | **B** — a exclusão de conta existe desde a Phase 12 (ADR 0013 §3) e dá fim de vida a perfil, grupos próprios, alertas, confirmações e push devices. Ficam sem prazo próprio: convites processados e push devices inativos (pendência em `retention-policy.md`) |
 
 ### 4.24 Instância comprometida
 

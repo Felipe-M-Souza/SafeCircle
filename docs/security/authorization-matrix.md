@@ -28,35 +28,41 @@ Regra geral: **deny by default**. Tudo que não está marcado ✅ é negado.
 
 ## Autenticação e conta
 
-| Ação                              | anon | próprio usuário        | outro usuário | Observação                                                              |
-| --------------------------------- | ---- | ---------------------- | ------------- | ----------------------------------------------------------------------- |
-| `POST /auth/register`             | ✅   | —                      | —             | Rate limit 10/min/IP; senha 12–128                                      |
-| `POST /auth/login`                | ✅   | —                      | —             | Rate limit por IP + freio por conta; resposta genérica                  |
-| `POST /auth/refresh`              | ✅*  | —                      | —             | *Autentica pelo refresh token; rotação; reuso revoga a sessão           |
-| `POST /auth/logout`               | ✅*  | —                      | —             | *Idempotente; revoga a sessão do refresh apresentado                    |
-| `GET /me`                         | 401  | ✅                     | —             |                                                                         |
-| `GET /me/sessions`                | 401  | ✅ (só as suas)        | —             | Nunca hash, IP ou User-Agent                                            |
-| `DELETE /me/sessions/:sessionId`  | 401  | ✅ (inclusive a atual) | 404           | Sessão alheia ou inexistente: mesma resposta                            |
-| `POST /me/sessions/revoke-others` | 401  | ✅                     | —             | Mantém a atual                                                          |
-| `GET /me/privacy/export`          | 401  | ✅                     | —             | Só dados próprios; rate limit 5/h/IP; audita `PRIVACY_EXPORT_REQUESTED` |
+| Ação                              | anon | próprio usuário        | outro usuário | Observação                                                                                                |
+| --------------------------------- | ---- | ---------------------- | ------------- | --------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`             | ✅   | —                      | —             | Rate limit 10/min/IP; senha 12–128                                                                        |
+| `POST /auth/login`                | ✅   | —                      | —             | Rate limit por IP + freio por conta; resposta genérica                                                    |
+| `POST /auth/refresh`              | ✅*  | —                      | —             | *Autentica pelo refresh token; rotação; reuso revoga a sessão                                             |
+| `POST /auth/logout`               | ✅*  | —                      | —             | *Idempotente; revoga a sessão do refresh apresentado                                                      |
+| `GET /me`                         | 401  | ✅                     | —             |                                                                                                           |
+| `GET /me/sessions`                | 401  | ✅ (só as suas)        | —             | Nunca hash, IP ou User-Agent                                                                              |
+| `DELETE /me/sessions/:sessionId`  | 401  | ✅ (inclusive a atual) | 404           | Sessão alheia ou inexistente: mesma resposta                                                              |
+| `POST /me/sessions/revoke-others` | 401  | ✅                     | —             | Mantém a atual                                                                                            |
+| `GET /me/privacy/export`          | 401  | ✅                     | —             | Só dados próprios; rate limit 5/h/IP; audita `PRIVACY_EXPORT_REQUESTED`                                   |
+| `GET /me/account-deletion`        | 401  | ✅                     | —             | Phase 12: bloqueios e impacto da exclusão da própria conta                                                |
+| `POST /me/delete-account`         | 401  | ✅ (com a senha atual) | —             | Phase 12: 409 se OWNER de grupo com outros membros ou recurso ativo; rate limit do login; freio por conta |
 
 ## Grupos
 
-| Ação                                          | anon | owner | admin | member | external                          |
-| --------------------------------------------- | ---- | ----- | ----- | ------ | --------------------------------- |
-| `POST /groups`                                | 401  | ✅    | ✅    | ✅     | ✅ (vira OWNER do novo)           |
-| `GET /groups` (meus grupos)                   | 401  | ✅    | ✅    | ✅     | ✅ (lista vazia do que não é seu) |
-| `GET /groups/:groupId`                        | 401  | ✅    | ✅    | ✅     | 404                               |
-| `PATCH /groups/:groupId` (renomear)           | 401  | ✅    | ✅    | 403    | 404                               |
-| `GET /groups/:groupId/members`                | 401  | ✅    | ✅    | ✅     | 404                               |
-| `DELETE /groups/:groupId/members/me` (sair)   | 401  | 403¹  | ✅    | ✅     | 404                               |
-| `DELETE /groups/:groupId/members/:userId`     | 401  | ✅²   | ✅³   | 403    | 404                               |
-| `PATCH /groups/:groupId/members/:userId/role` | 401  | ✅⁴   | 403   | 403    | 404                               |
+| Ação                                                  | anon | owner | admin | member | external                          |
+| ----------------------------------------------------- | ---- | ----- | ----- | ------ | --------------------------------- |
+| `POST /groups`                                        | 401  | ✅    | ✅    | ✅     | ✅ (vira OWNER do novo)           |
+| `GET /groups` (meus grupos)                           | 401  | ✅    | ✅    | ✅     | ✅ (lista vazia do que não é seu) |
+| `GET /groups/:groupId`                                | 401  | ✅    | ✅    | ✅     | 404                               |
+| `PATCH /groups/:groupId` (renomear)                   | 401  | ✅    | ✅    | 403    | 404                               |
+| `GET /groups/:groupId/members`                        | 401  | ✅    | ✅    | ✅     | 404                               |
+| `DELETE /groups/:groupId/members/me` (sair)           | 401  | 403¹  | ✅    | ✅     | 404                               |
+| `DELETE /groups/:groupId/members/:userId`             | 401  | ✅²   | ✅³   | 403    | 404                               |
+| `PATCH /groups/:groupId/members/:userId/role`         | 401  | ✅⁴   | 403   | 403    | 404                               |
+| `POST /groups/:groupId/transfer-ownership` (Phase 12) | 401  | ✅⁵   | 403   | 403    | 404                               |
 
 ¹ `OWNER_CANNOT_LEAVE_GROUP` — não há transferência de ownership.
 ² OWNER não pode remover a si mesmo (`CANNOT_REMOVE_OWNER`).
 ³ ADMIN remove apenas MEMBER; ADMIN/OWNER → 403.
 ⁴ Só entre ADMIN e MEMBER; o papel do OWNER não muda.
+⁵ Só o OWNER, para outro membro do grupo (não para si mesmo). O alvo vira
+OWNER e o antigo dono vira ADMIN — é o caminho para excluir a própria conta sem
+desfazer o grupo (Phase 12).
 
 ## Convites
 

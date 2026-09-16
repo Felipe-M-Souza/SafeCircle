@@ -8,11 +8,11 @@ Release: ____________ · Data: ____________ · Responsável: ____________
 
 ## Bloqueadores
 
-| #   | Item                                                                                                            | OK  | Evidência |
-| --- | --------------------------------------------------------------------------------------------------------------- | --- | --------- |
-| 1   | **RELEASE BLOCKER — implementar fluxo completo de exclusão de conta antes da publicação nas lojas.** (ADR 0012) |     |           |
-| 2   | Política de privacidade publicada e coerente com `docs/privacy/data-inventory.md`                               |     |           |
-| 3   | Testes em aparelhos reais (iOS e Android) executados: login, SOS, push, localização, check-in, trajeto          |     |           |
+| #   | Item                                                                                                                                                                              | OK  | Evidência |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------- |
+| 1   | Exclusão de conta completa e validada (bloqueador da Phase 11, **resolvido na Phase 12** — ADR 0013 §3; testes de integração e E2E). Validar também em aparelho (plano manual §9) |     |           |
+| 2   | Política de privacidade publicada e coerente com `docs/privacy/data-inventory.md`                                                                                                 |     |           |
+| 3   | Testes em aparelhos reais (iOS e Android) executados: login, SOS, push, localização, check-in, trajeto                                                                            |     |           |
 
 ## Segredos e configuração
 
