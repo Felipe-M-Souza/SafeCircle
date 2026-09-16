@@ -1,0 +1,22 @@
+# Contexto de build da API (apps/api/Dockerfile). Nada sensível ou inútil.
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/coverage
+.env
+.env.*
+!.env.example
+apps/mobile
+docs
+tests
+scripts
+*.md
+.expo
+**/.expo
+credentials.json
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
