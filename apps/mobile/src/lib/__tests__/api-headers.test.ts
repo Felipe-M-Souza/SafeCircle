@@ -17,8 +17,8 @@ function okResponse(body: unknown): Response {
   } as unknown as Response;
 }
 
-function headersOf(call: unknown[]): Record<string, string> {
-  const init = call[1] as RequestInit;
+function headersOf(call: [string, RequestInit?]): Record<string, string> {
+  const init = call[1] ?? {};
   return (init.headers ?? {}) as Record<string, string>;
 }
 
@@ -28,7 +28,9 @@ afterEach(() => {
 
 describe("Cliente HTTP — Content-Type", () => {
   it("POST sem corpo (resolver alerta) não envia Content-Type", async () => {
-    const fetchMock = jest.fn(async () => okResponse({ id: "a1", status: "RESOLVED" }));
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) =>
+      okResponse({ id: "a1", status: "RESOLVED" }),
+    );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const api = createApiClient({
       getAccessToken: () => "token-de-teste",
@@ -41,7 +43,7 @@ describe("Cliente HTTP — Content-Type", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     for (const call of fetchMock.mock.calls) {
-      const init = call[1] as RequestInit;
+      const init = call[1] ?? {};
       expect(init.method).toBe("POST");
       expect(init.body).toBeUndefined();
       expect(headersOf(call)["Content-Type"]).toBeUndefined();
@@ -50,7 +52,9 @@ describe("Cliente HTTP — Content-Type", () => {
   });
 
   it("POST com corpo envia Content-Type: application/json e o JSON", async () => {
-    const fetchMock = jest.fn(async () => okResponse({ id: "g1" }));
+    const fetchMock = jest.fn(async (_url: string, _init?: RequestInit) =>
+      okResponse({ id: "g1" }),
+    );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const api = createApiClient({
       getAccessToken: () => "token-de-teste",
@@ -59,8 +63,8 @@ describe("Cliente HTTP — Content-Type", () => {
 
     await api.createGroup("Família");
 
-    const call = fetchMock.mock.calls[0] as unknown[];
+    const call = fetchMock.mock.calls[0]!;
     expect(headersOf(call)["Content-Type"]).toBe("application/json");
-    expect((call[1] as RequestInit).body).toBe(JSON.stringify({ name: "Família" }));
+    expect(call[1]?.body).toBe(JSON.stringify({ name: "Família" }));
   });
 });
