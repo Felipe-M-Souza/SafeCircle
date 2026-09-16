@@ -3,11 +3,7 @@
   "iconCornerRadiusPx": 225,
   "adaptiveIconBackgroundColor": "#014D91",
   "iconEdgeColor": "#014C92",
-  "logoTrimmed": {
-    "width": 1605,
-    "height": 543,
-    "aspect": 2.9558
-  },
+  "logoTrimmed": { "width": 1605, "height": 543, "aspect": 2.9558 },
   "outputs": [
     "icon.png",
     "adaptive-icon.png",

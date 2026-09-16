@@ -30,6 +30,14 @@ const ICON_SRC = resolve(brandDir, "icon-source.png");
 const LOGO_SRC = resolve(brandDir, "logo-source.png");
 const SIZE = 1024;
 
+function formatJson(value) {
+  const text = JSON.stringify(value, null, 2) + "\n";
+  return text.replace(
+    /\{\n\s+"width": (\d+),\n\s+"height": (\d+),\n\s+"aspect": ([\d.]+)\n\s+\}/,
+    '{ "width": $1, "height": $2, "aspect": $3 }',
+  );
+}
+
 function hex([r, g, b]) {
   return (
     "#" +
@@ -168,7 +176,8 @@ async function main() {
     },
     outputs: ["icon.png", "adaptive-icon.png", "splash-icon.png", "logo.png", "favicon.png"],
   };
-  await writeFile(resolve(brandDir, "generated.json"), JSON.stringify(summary, null, 2) + "\n");
+  // Mesmo formato que o Prettier produz para este JSON (objeto curto em uma linha).
+  await writeFile(resolve(brandDir, "generated.json"), formatJson(summary));
   console.log(JSON.stringify(summary, null, 2));
 }
 
