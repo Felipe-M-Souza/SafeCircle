@@ -66,3 +66,13 @@ jobs:
 
       - name: Verificar conectividade com o banco (Drizzle + PostgreSQL)
         run: pnpm db:check
+
+      # Phase 12: sobe o processo real da API sobre um banco E2E descartável e
+      # exercita auth, grupos, SOS, check-in, trajeto, privacidade, exclusão de
+      # conta e recuperação da outbox por HTTP/WebSocket. Sem aparelho: o E2E
+      # mobile (Maestro) roda fora do pipeline principal.
+      - name: E2E da API (processo real + PostgreSQL descartável)
+        run: pnpm e2e:api
+
+      - name: Bloqueadores de release (bug bar)
+        run: pnpm release:blockers

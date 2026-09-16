@@ -1,6 +1,6 @@
 {
   "name": "safecircle",
-  "version": "0.0.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "description": "SafeCircle — rede privada de segurança para grupos de confiança (monorepo).",
   "packageManager": "pnpm@10.33.3",
@@ -30,7 +30,14 @@
     "outbox:retry-dead": "pnpm --filter @safecircle/api run outbox:retry-dead",
     "outbox:cleanup": "pnpm --filter @safecircle/api run outbox:cleanup",
     "privacy:cleanup": "pnpm --filter @safecircle/api run privacy:cleanup",
-    "security:audit": "pnpm audit --audit-level high"
+    "security:audit": "pnpm audit --audit-level high",
+    "e2e:api": "pnpm --filter @safecircle/api run e2e",
+    "e2e:seed": "pnpm --filter @safecircle/api run e2e:seed",
+    "e2e:reset": "pnpm --filter @safecircle/api run e2e:reset",
+    "e2e:mobile": "pnpm --filter @safecircle/mobile run e2e",
+    "smoke:api": "pnpm --filter @safecircle/api run smoke",
+    "release:blockers": "node scripts/release-blockers-check.mjs",
+    "release:check": "node scripts/release-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
