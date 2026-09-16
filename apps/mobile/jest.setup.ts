@@ -53,6 +53,27 @@ jest.mock("react-native-maps", () => {
   };
 });
 
+// Área segura: sem insets nos testes; SafeAreaView vira um View.
+jest.mock("react-native-safe-area-context", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  return {
+    __esModule: true,
+    SafeAreaProvider: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    SafeAreaView: ({
+      children,
+      style,
+    }: {
+      children?: React.ReactNode;
+      style?: import("react-native").StyleProp<import("react-native").ViewStyle>;
+    }) => React.createElement(View, { style, testID: "safe-area-view" }, children),
+    useSafeAreaInsets: () => insets,
+    initialWindowMetrics: { frame: { x: 0, y: 0, width: 0, height: 0 }, insets },
+  };
+});
+
 jest.mock("expo-constants", () => ({
   __esModule: true,
   default: { expoConfig: { extra: {} }, easConfig: null },
