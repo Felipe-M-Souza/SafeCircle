@@ -402,6 +402,8 @@ pnpm journey:cleanup    # localização de trajetos (30 d) e trajetos finalizado
 pnpm audit:cleanup      # eventos de auditoria com mais de 180 dias
 pnpm outbox:cleanup     # outbox processada (30 d) e dead-letter (90 d)
 pnpm privacy:cleanup    # TODAS as políticas acima + sessões/refresh (30 d), em uma execução
+pnpm smoke:api          # smoke pós-deploy contra SMOKE_API_URL (Phase 12)
+pnpm release:check      # verificações determinísticas do Release Candidate (Phase 12)
 pnpm security:audit     # dependências com advisory high/critical (falha o CI)
 ```
 
@@ -586,13 +588,40 @@ pnpm privacy:cleanup      # encadeia localização, check-ins, trajetos, auditor
   roteiro de incidentes.
 - Prazos em [`docs/privacy/retention-policy.md`](../privacy/retention-policy.md).
 
-### 15.9 RELEASE BLOCKER — exclusão de conta
+### 15.9 Exclusão de conta (Phase 12)
 
-> RELEASE BLOCKER — implementar fluxo completo de exclusão de conta antes da
-> publicação nas lojas.
+O bloqueador da Phase 11 foi resolvido: existe `POST /me/delete-account`
+(com a senha atual) e a tela "Excluir minha conta" no app. Não há mais
+RELEASE BLOCKER por este motivo.
 
-Não existe `DELETE /me`. Um pedido de exclusão hoje **não pode** ser atendido
-com um `DELETE FROM users`: grupos onde a pessoa é OWNER ficariam sem dono,
-alertas ativos sumiriam sem aviso e a outbox pendente falharia. Registre o
-pedido e escale; a decisão de produto (transferência de ownership, carência,
-bloqueio com SOS ativo) está mapeada no ADR 0012 §21.
+- Pedido de exclusão que **não** passa: a resposta diz o quê resolver —
+  `ACCOUNT_DELETION_BLOCKED_BY_GROUP_OWNERSHIP` (transferir a propriedade em
+  `POST /groups/:id/transfer-ownership` ou remover os membros) ou
+  `ACCOUNT_DELETION_BLOCKED_BY_ACTIVE_RESOURCES` (encerrar alerta, check-in ou
+  trajeto em andamento). Nunca cancele a emergência de alguém para liberar a
+  exclusão.
+- O plantão **não** apaga contas por SQL: a rota é a única forma consistente
+  (transação, bloqueios, auditoria anonimizada, WebSocket fechado). Se a
+  pessoa não consegue usar o app, oriente pelo suporte; a decisão de produto
+  para exclusão assistida fica para a Phase 13.
+- Trilha: `ACCOUNT_DELETION_REQUESTED` e `ACCOUNT_DELETION_COMPLETED` com
+  `target_id` = id da conta e ator nulo. Linhas antigas da pessoa ficam com
+  `actor_user_id` nulo pelo prazo de retenção (180 d).
+- Eventos da outbox que citavam a pessoa e ainda estavam PENDING são
+  entregues anonimizados; não geram DEAD. Se aparecer DEAD com
+  `AUDIT_INSERT_FAILED` logo após uma exclusão, é bug — abra incidente.
+
+### 15.10 Release Candidate e E2E
+
+```bash
+pnpm release:check        # lint, format, typecheck, testes, build, audit, db, migrations, blockers, E2E
+pnpm release:blockers     # bug bar: falha com BLOCKER em aberto ou HIGH sem decisão
+pnpm e2e:api              # sobe a API real sobre banco descartável e roda 21 cenários
+pnpm smoke:api            # 9 etapas contra uma API em execução (SMOKE_API_URL)
+pnpm e2e:reset && pnpm e2e:seed   # ambiente E2E zerado + contas sintéticas
+```
+
+Depois de cada deploy/RC: `SMOKE_API_URL=https://<host> pnpm smoke:api`. Ele
+cria e apaga uma conta sintética (`smoke.*@safecircle.test`) — não deixa
+resíduo. Bloqueadores, evidências, plano de aparelho e rollback vivem em
+`docs/release/`.

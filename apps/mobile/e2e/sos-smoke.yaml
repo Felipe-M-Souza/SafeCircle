@@ -1,0 +1,36 @@
+# E2E — SOS smoke (Phase 12 §27, §36)
+# Ana (seed, dona do grupo "Família E2E") aciona o SOS segurando o botão, vê o
+# alerta ativo e o encerra com "Estou em segurança". A localização é a do
+# emulador (nunca um endereço real): configure uma coordenada sintética no
+# emulador antes de rodar.
+appId: com.safecircle.app
+env:
+  ANA: ana.e2e@safecircle.test
+  PASSWORD: senha-e2e-segura-123
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: allow
+      notifications: allow
+- tapOn: "E-mail"
+- inputText: ${ANA}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible: "Olá, Ana E2E."
+- assertVisible: "Família E2E"
+# Segurar por 2 s ativa o alerta (HoldToActivateButton).
+- longPressOn:
+    text: "SEGURE PARA PEDIR AJUDA"
+    duration: 2500
+- assertVisible: "🚨 Alerta ativo"
+- assertVisible: "Seu alerta está ativo no grupo Família E2E."
+- tapOn: "ESTOU EM SEGURANÇA"
+- assertVisible: "Alerta resolvido"
+- assertVisible: "Que bom que você está em segurança. O alerta foi encerrado."
+- back
+- tapOn:
+    id: "home-logout"

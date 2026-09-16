@@ -22,6 +22,28 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
+// --- Exclusão de conta (Phase 12) ---
+export interface AccountDeletionBlockers {
+  groupsWithOtherMembers: Array<{ groupId: string; name: string; memberCount: number }>;
+  activeAlerts: string[];
+  activeCheckins: string[];
+  activeJourneys: string[];
+}
+
+export interface AccountDeletionPreview {
+  canDelete: boolean;
+  blockers: AccountDeletionBlockers;
+  impact: {
+    soleMemberGroups: Array<{ groupId: string; name: string }>;
+    membershipsLeft: number;
+    alerts: number;
+    checkins: number;
+    journeys: number;
+    pushDevices: number;
+    sessions: number;
+  };
+}
+
 export interface TokenPair {
   accessToken: string;
   refreshToken: string;
@@ -359,6 +381,16 @@ export function createApiClient(bridge?: AuthBridge) {
       return authed<PublicUser>("GET", "/me");
     },
 
+    // --- Exclusão de conta (Phase 12) ---
+    getAccountDeletionPreview(): Promise<AccountDeletionPreview> {
+      return authed<AccountDeletionPreview>("GET", "/me/account-deletion");
+    },
+    /** Irreversível; exige a senha atual. Depois disto nenhum token vale mais. */
+    async deleteAccount(password: string): Promise<void> {
+      // Sem retry por refresh: se a sessão morreu, a exclusão não deve se repetir.
+      await authed<void>("POST", "/me/delete-account", { password }, {}, false);
+    },
+
     // --- Grupos de Confiança (Phase 2) ---
     listGroups(): Promise<GroupSummary[]> {
       return authed<GroupSummary[]>("GET", "/groups");
@@ -387,6 +419,10 @@ export function createApiClient(bridge?: AuthBridge) {
       role: "ADMIN" | "MEMBER",
     ): Promise<GroupMember> {
       return authed<GroupMember>("PATCH", `/groups/${groupId}/members/${userId}/role`, { role });
+    },
+    /** Phase 12: o OWNER passa a propriedade a outro membro e vira ADMIN. */
+    transferOwnership(groupId: string, userId: string): Promise<void> {
+      return authed<void>("POST", `/groups/${groupId}/transfer-ownership`, { userId });
     },
     createInvitation(groupId: string, email: string): Promise<GroupInvitation> {
       return authed<GroupInvitation>("POST", `/groups/${groupId}/invitations`, { email });

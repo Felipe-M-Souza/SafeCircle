@@ -115,8 +115,13 @@ Sem IP, sem User-Agent, sem coordenada, sem token, sem e-mail. `actor_user_id`
 
 ## Pendências registradas
 
-- **Exclusão de conta**: não existe; sem ela, perfil, grupos, alertas (sem
-  localização), confirmações, convites e push devices não têm fim de vida.
-  **RELEASE BLOCKER** antes da publicação (ADR 0012, runbook §15).
+- **Exclusão de conta**: implementada na Phase 12 (`POST /me/delete-account`,
+  com senha). Apaga perfil, sessões, histórico de refresh, push devices,
+  alertas/check-ins/trajetos próprios (com localização, sessões ao vivo e
+  confirmações sobre eles), confirmações próprias, convites enviados e para o
+  e-mail, memberships e grupos em que a pessoa era a única. Auditoria fica
+  anonimizada (`actor_user_id` nulo). Bloqueada enquanto houver grupo próprio
+  com outros membros (transferir a propriedade) ou alerta/check-in/trajeto em
+  andamento. Decisão por entidade no ADR 0013 §3.
 - Prazos ainda não definidos estão marcados como **pendência** acima e
   consolidados em `retention-policy.md`.

@@ -27,6 +27,11 @@ export const changeRoleSchema = z.object({
   role: z.enum(["ADMIN", "MEMBER"]),
 });
 
+// Phase 12: alvo da transferência de propriedade (um membro do grupo).
+export const transferOwnershipSchema = z.object({
+  userId: z.string().uuid("Membro inválido."),
+});
+
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;

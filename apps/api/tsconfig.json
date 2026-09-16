@@ -8,5 +8,12 @@
     "types": ["node"],
     "sourceMap": true
   },
-  "include": ["src", "tests", "drizzle.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "e2e",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "vitest.e2e.config.ts"
+  ]
 }

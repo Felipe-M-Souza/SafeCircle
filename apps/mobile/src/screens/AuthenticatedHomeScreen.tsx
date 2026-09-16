@@ -8,6 +8,7 @@ import { NotificationsCard } from "../components/NotificationsCard";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { strings, translateErrorCode, translateApiError } from "../i18n/pt-BR";
 import { ApiError, type EmergencyAlert, type GroupSummary } from "../lib/api";
+import { buildInfoLabel } from "../lib/build-info";
 import { generateIdempotencyKey } from "../lib/idempotency";
 import { captureInitialLocation } from "../lib/location";
 import { isAlertEvent, type RealtimeEvent } from "../realtime/events";
@@ -271,11 +272,28 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
           </Text>
         ) : null}
 
-        <Pressable onPress={handleSignOut} disabled={signingOut || busy} accessibilityRole="button">
+        <Pressable
+          onPress={handleSignOut}
+          disabled={signingOut || busy}
+          accessibilityRole="button"
+          testID="home-logout"
+        >
           <Text style={styles.logout}>{signingOut ? "..." : t.logout}</Text>
         </Pressable>
 
+        <Pressable
+          onPress={() => nav.navigate({ name: "deleteAccount" })}
+          disabled={busy}
+          accessibilityRole="button"
+          testID="home-delete-account"
+        >
+          <Text style={styles.deleteAccount}>{strings.accountDeletion.entry}</Text>
+        </Pressable>
+
         <Text style={styles.disclaimer}>{strings.home.disclaimer}</Text>
+        <Text style={styles.buildInfo} accessibilityLabel="Versão do aplicativo">
+          {buildInfoLabel()}
+        </Text>
       </View>
     </View>
   );
@@ -363,4 +381,12 @@ const styles = StyleSheet.create({
   },
   error: { color: colors.danger, fontSize: 14, textAlign: "center" },
   disclaimer: { color: colors.mutedText, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  deleteAccount: {
+    color: colors.mutedText,
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 4,
+    textDecorationLine: "underline",
+  },
+  buildInfo: { color: colors.mutedText, fontSize: 11, textAlign: "center" },
 });

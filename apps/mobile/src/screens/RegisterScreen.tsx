@@ -100,6 +100,7 @@ export function RegisterScreen({
             label={submitting ? t.submitting : t.submit}
             onPress={handleSubmit}
             loading={submitting}
+            testID="register-submit"
           />
 
           <View style={styles.footer}>

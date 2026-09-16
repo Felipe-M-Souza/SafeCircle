@@ -15,7 +15,9 @@ export type Screen =
   // Phase 8 — Trajeto Seguro
   | { name: "newJourney" }
   | { name: "journeyDetails"; journeyId: string }
-  | { name: "groupJourneys"; groupId: string; groupName: string };
+  | { name: "groupJourneys"; groupId: string; groupName: string }
+  // Phase 12 — Exclusão de conta
+  | { name: "deleteAccount" };
 
 export interface Nav {
   navigate: (screen: Screen) => void;
