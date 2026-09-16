@@ -56,14 +56,15 @@ foi usado.
 em `apps/mobile/src/config.ts` e, se a variável não existir, usa
 `http://localhost:3000`.
 
-Estado em 2026-09-16: **não há API de preview pública** e nenhuma variável
-`EXPO_PUBLIC_API_URL` foi definida no ambiente `preview` do EAS. Portanto o APK
-gerado aponta para `http://localhost:3000`, que num aparelho é o próprio
-aparelho: **o binário instala e abre, mas não tem fluxo ponta a ponta
-funcional** (login, grupos e alertas falham ao chamar a API). Isso é uma
-limitação registrada, não um defeito escondido.
+Estado em 2026-09-16: a API de preview roda no Railway em
+https://api-production-9e007.up.railway.app (ver
+`railway-api-preview.md`) e a variável `EXPO_PUBLIC_API_URL` do ambiente
+`preview` do EAS aponta para ela (`eas env:list --environment preview`).
+A **primeira build** (`4fea644d`) foi gerada antes disso e aponta para
+`http://localhost:3000`: instala e abre, mas não tem fluxo ponta a ponta. A
+**segunda build** (abaixo) carrega a URL real.
 
-Para um APK funcional, defina a URL antes de buildar, sem commitar:
+Para trocar a URL, sem commitar:
 
 ```bash
 cd apps/mobile
@@ -134,6 +135,26 @@ O link do artefato é fornecido pelo Expo e pode expirar; a página da build é 
 referência estável. Como não havia API de preview, este APK instala e abre mas
 não completa login nem fluxos que chamem a API (limitação descrita acima).
 
+### Segunda build — com a URL da API (recomendada para instalar)
+
+Status: **APK BUILT — DEVICE INSTALLATION PENDING**.
+
+| Item            | Valor                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| EAS build ID    | `8dd7ce01-e4b6-4d2b-b712-2c302ae90894`                                                                      |
+| Status          | `FINISHED` (criada 2026-09-16 16:20 UTC, concluída 17:09 UTC)                                               |
+| Página da build | https://expo.dev/accounts/felipe_melo_souza/projects/safecircle/builds/8dd7ce01-e4b6-4d2b-b712-2c302ae90894 |
+| APK (download)  | https://expo.dev/artifacts/eas/cPKcGDkaTgSckDS_u0NstwD4lLJVzTH8BgBja3G0eZI.apk (link transitório do Expo)   |
+| Profile         | `preview-apk` (internal, APK)                                                                               |
+| Versão          | `0.1.0`, `versionCode` 1                                                                                    |
+| Git SHA         | `3c636e9`                                                                                                   |
+| Ambiente        | `EXPO_PUBLIC_APP_ENV=preview`; `EXPO_PUBLIC_API_URL` carregada do ambiente `preview` do EAS (Railway)       |
+| Credenciais     | mesma keystore gerenciada pelo EAS da primeira build                                                        |
+
+Este é o APK a instalar: cadastro, login, grupos e alertas falam com a API do
+Railway. Validação em aparelho continua `NOT EXECUTED` até alguém instalar e
+executar o plano manual.
+
 ## Instalação manual no aparelho
 
 1. Abra a página da build no Expo (link acima) no próprio aparelho Android ou
@@ -147,7 +168,8 @@ não completa login nem fluxos que chamem a API (limitação descrita acima).
 
 - Nenhuma validação em aparelho físico foi executada nesta tarefa:
   `NOT EXECUTED — requires physical Android device`.
-- Sem API de preview: o APK não tem fluxo ponta a ponta funcional (ver acima).
+- A primeira build (`4fea644d`) não tem fluxo ponta a ponta (sem URL de API);
+  a segunda tem. A API do Railway é preview: sem SLA nem backup agendado.
 - `EXPO_PUBLIC_GIT_SHA` não é injetado pelo EAS neste profile; o rodapé mostra
   o commit apenas quando a variável é definida na build.
 - iOS não configurado (sem credenciais Apple); nenhuma build iOS.
