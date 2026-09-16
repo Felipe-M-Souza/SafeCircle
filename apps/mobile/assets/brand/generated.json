@@ -4,11 +4,5 @@
   "adaptiveIconBackgroundColor": "#014D91",
   "iconEdgeColor": "#014C92",
   "logoTrimmed": { "width": 1605, "height": 543, "aspect": 2.9558 },
-  "outputs": [
-    "icon.png",
-    "adaptive-icon.png",
-    "splash-icon.png",
-    "logo.png",
-    "favicon.png"
-  ]
+  "outputs": ["icon.png", "adaptive-icon.png", "splash-icon.png", "logo.png", "favicon.png"]
 }

@@ -21,6 +21,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import prettier from "prettier";
 import sharp from "sharp";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,14 +30,6 @@ const outDir = resolve(root, "apps/mobile/assets");
 const ICON_SRC = resolve(brandDir, "icon-source.png");
 const LOGO_SRC = resolve(brandDir, "logo-source.png");
 const SIZE = 1024;
-
-function formatJson(value) {
-  const text = JSON.stringify(value, null, 2) + "\n";
-  return text.replace(
-    /\{\n\s+"width": (\d+),\n\s+"height": (\d+),\n\s+"aspect": ([\d.]+)\n\s+\}/,
-    '{ "width": $1, "height": $2, "aspect": $3 }',
-  );
-}
 
 function hex([r, g, b]) {
   return (
@@ -176,8 +169,13 @@ async function main() {
     },
     outputs: ["icon.png", "adaptive-icon.png", "splash-icon.png", "logo.png", "favicon.png"],
   };
-  // Mesmo formato que o Prettier produz para este JSON (objeto curto em uma linha).
-  await writeFile(resolve(brandDir, "generated.json"), formatJson(summary));
+  // Formatado com o Prettier do repositório: `pnpm format:check` cobre este arquivo.
+  const generatedPath = resolve(brandDir, "generated.json");
+  const prettierConfig = (await prettier.resolveConfig(generatedPath)) ?? {};
+  await writeFile(
+    generatedPath,
+    await prettier.format(JSON.stringify(summary), { ...prettierConfig, parser: "json" }),
+  );
   console.log(JSON.stringify(summary, null, 2));
 }
 
