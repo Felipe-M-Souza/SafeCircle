@@ -148,3 +148,10 @@ apps/mobile/expo-env.d.ts
 apps/**/dist/
 apps/**/.expo/
 
+
+# Credenciais de assinatura/EAS baixadas localmente — nunca versionar
+credentials.json
+*.jks
+*.keystore
+*.p12
+*.mobileprovision

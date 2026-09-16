@@ -65,20 +65,20 @@ plugin (teste de integração `tests/realtime-shutdown.test.ts`).
 
 ## NOT EXECUTED — e por quê
 
-| Item                                                          | Motivo                                                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| E2E mobile (Maestro, `apps/mobile/e2e/*.yaml`)                | Sem emulador/aparelho e sem Maestro no ambiente. Flows escritos com textos e `testID`s reais; não executados |
-| Push real (Android/iOS)                                       | Sem aparelho físico e sem `EXPO_ACCESS_TOKEN`/credenciais                                                    |
-| Permissões (notificações, localização) em aparelho            | Sem aparelho                                                                                                 |
-| GPS (disponível/desligado/precisão/stale/stop)                | Sem aparelho                                                                                                 |
-| Foreground/background, tela bloqueada, ciclos repetidos       | Sem aparelho                                                                                                 |
-| Offline/reconexão no app                                      | Sem aparelho (a parte de API — retry idempotente, reconexão de WS após restart — está no E2E)                |
-| Deep links em aparelho                                        | Sem aparelho                                                                                                 |
-| Builds EAS (Android APK/AAB, iOS)                             | Sem credenciais EAS/Apple/Google — requer ação do proprietário                                               |
-| Inspeção de bundle gerado                                     | Depende da build EAS; a inspeção estática do código mostra que o app lê apenas `EXPO_PUBLIC_*`               |
-| Acessibilidade, font scaling, timezone/clock skew em aparelho | Sem aparelho                                                                                                 |
-| Bateria/memória em sessão prolongada no aparelho              | Sem aparelho                                                                                                 |
-| Carga com k6                                                  | k6 não instalado; script em `tests/load/k6-api-load.js`; a carga foi medida com `api-load.mjs`               |
+| Item                                                          | Motivo                                                                                                                                                                             |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| E2E mobile (Maestro, `apps/mobile/e2e/*.yaml`)                | Sem emulador/aparelho e sem Maestro no ambiente. Flows escritos com textos e `testID`s reais; não executados                                                                       |
+| Push real (Android/iOS)                                       | Sem aparelho físico e sem `EXPO_ACCESS_TOKEN`/credenciais                                                                                                                          |
+| Permissões (notificações, localização) em aparelho            | Sem aparelho                                                                                                                                                                       |
+| GPS (disponível/desligado/precisão/stale/stop)                | Sem aparelho                                                                                                                                                                       |
+| Foreground/background, tela bloqueada, ciclos repetidos       | Sem aparelho                                                                                                                                                                       |
+| Offline/reconexão no app                                      | Sem aparelho (a parte de API — retry idempotente, reconexão de WS após restart — está no E2E)                                                                                      |
+| Deep links em aparelho                                        | Sem aparelho                                                                                                                                                                       |
+| Builds EAS (Android AAB, iOS)                                 | Sem credenciais Google Play/Apple — requer ação do proprietário. Android **APK de preview** gerado em 2026-09-16 (`expo-eas-apk-preview.md`), fora do escopo deste relatório do RC |
+| Inspeção de bundle gerado                                     | Depende da build EAS; a inspeção estática do código mostra que o app lê apenas `EXPO_PUBLIC_*`                                                                                     |
+| Acessibilidade, font scaling, timezone/clock skew em aparelho | Sem aparelho                                                                                                                                                                       |
+| Bateria/memória em sessão prolongada no aparelho              | Sem aparelho                                                                                                                                                                       |
+| Carga com k6                                                  | k6 não instalado; script em `tests/load/k6-api-load.js`; a carga foi medida com `api-load.mjs`                                                                                     |
 
 ## Conclusão
 

@@ -263,7 +263,7 @@ só fora de produção), `RATE_LIMIT_PROFILE` e `SCHEDULER_POLL_INTERVAL_MS`
 
 Limitações conhecidas desta fase: nenhuma validação em aparelho físico foi
 executada (push real, permissões, GPS, foreground/background, offline no app,
-deep links) e nenhum binário EAS foi gerado — ambos exigem aparelho e
+deep links) e nenhum binário EAS foi gerado na fase — ambos exigem aparelho e
 credenciais do proprietário e estão marcados `NOT EXECUTED` em
 `docs/release/test-report.md`. A localização ao vivo continua só em primeiro
 plano por decisão explícita. Não há tag de release nem publicação nas lojas.
@@ -274,6 +274,27 @@ Token em builds EAS, configure o `projectId` público em `apps/mobile/app.json`
 (`expo.extra.eas.projectId`); credenciais FCM/APNs ficam na conta Expo/EAS,
 nunca neste repositório. No backend, `EXPO_ACCESS_TOKEN` (opcional, segredo)
 autentica o envio na Expo Push API. Ver ADR 0005.
+
+### APK de Preview via Expo/EAS
+
+O app está vinculado ao projeto EAS `@felipe_melo_souza/safecircle`
+(`owner` e `extra.eas.projectId` em `apps/mobile/app.json`; identificadores
+públicos). O profile `preview-apk` de `apps/mobile/eas.json` gera um APK
+instalável (distribuição interna, sem loja) e lê `EXPO_PUBLIC_API_URL` das
+variáveis de ambiente EAS do ambiente `preview`, para nunca commitar um
+endpoint de teste. Comandos seguros, sempre a partir de `apps/mobile`:
+
+```bash
+pnpm dlx eas-cli@latest whoami                                      # sessão atual
+pnpm dlx eas-cli@latest config --platform android --profile preview-apk
+pnpm dlx eas-cli@latest build --platform android --profile preview-apk
+```
+
+Sem uma URL de API definida no EAS o APK aponta para `http://localhost:3000` e
+não tem fluxo ponta a ponta funcional. Nunca use `eas submit` nem o profile
+`production` para preview; nunca versione `EXPO_TOKEN`, keystore ou `.env`.
+Detalhes, limitações e instalação manual em
+`docs/release/expo-eas-apk-preview.md`.
 
 ## 1. Visão geral
 
