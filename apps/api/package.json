@@ -1,6 +1,6 @@
 {
   "name": "@safecircle/api",
-  "version": "0.0.0",
+  "version": "0.1.0-rc.1",
   "private": true,
   "type": "module",
   "main": "dist/server.js",
@@ -22,7 +22,11 @@
     "outbox:list-dead": "tsx src/scripts/outbox-cli.ts list-dead",
     "outbox:retry-dead": "tsx src/scripts/outbox-cli.ts retry-dead",
     "outbox:cleanup": "tsx src/scripts/outbox-cli.ts cleanup",
-    "privacy:cleanup": "tsx src/scripts/privacy-cleanup.ts"
+    "privacy:cleanup": "tsx src/scripts/privacy-cleanup.ts",
+    "e2e": "vitest run -c vitest.e2e.config.ts",
+    "e2e:seed": "tsx e2e/seed.ts",
+    "e2e:reset": "tsx e2e/reset.ts",
+    "smoke": "tsx src/scripts/smoke-api.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
