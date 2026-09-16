@@ -14,6 +14,7 @@ import { healthRoutes } from "./modules/health/health.routes.js";
 import { metricsRoutes } from "./modules/health/metrics.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { sessionsRoutes } from "./modules/auth/sessions.routes.js";
+import { accountRoutes } from "./modules/account/account.routes.js";
 import { LoginThrottle, type LoginThrottleOptions } from "./modules/auth/login-throttle.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { groupsRoutes } from "./modules/groups/groups.routes.js";
@@ -28,6 +29,7 @@ import { privacyRoutes } from "./modules/privacy/privacy.routes.js";
 import { outboxPlugin } from "./plugins/outbox.js";
 import { REDACTED_LOG_PATHS, resolveRequestId } from "./observability/request-context.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
+import { NoopPushProvider } from "./infrastructure/push/noop-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
 import { createOriginPolicy } from "./security/origins.js";
 
@@ -179,7 +181,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Provedor de push (Phase 4): o domínio depende só da interface PushProvider.
   app.decorate(
     "pushProvider",
-    options.pushProvider ?? new ExpoPushProvider({ accessToken: config.expoAccessToken }),
+    options.pushProvider ??
+      (config.pushProvider === "noop"
+        ? new NoopPushProvider(app.log)
+        : new ExpoPushProvider({ accessToken: config.expoAccessToken })),
   );
 
   await app.register(healthRoutes, { appVersion: config.appVersion });
@@ -212,6 +217,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     );
     await app.register(authRoutes, { appConfig: config, loginThrottle });
     await app.register(sessionsRoutes);
+    await app.register(accountRoutes, { appConfig: config, loginThrottle });
     await app.register(usersRoutes, { appConfig: config });
     await app.register(privacyRoutes, { appConfig: config });
     await app.register(groupsRoutes, { appConfig: config });
@@ -221,10 +227,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(checkinsRoutes, { appConfig: config });
     await app.register(checkinSchedulerPlugin, {
       autoStart: options.checkinSchedulerAutoStart ?? config.nodeEnv !== "test",
+      intervalMs: config.schedulerPollIntervalMs,
     });
     await app.register(journeysRoutes, { appConfig: config });
     await app.register(journeySchedulerPlugin, {
       autoStart: options.journeySchedulerAutoStart ?? config.nodeEnv !== "test",
+      intervalMs: config.schedulerPollIntervalMs,
     });
     await app.register(outboxPlugin, {
       autoStart:

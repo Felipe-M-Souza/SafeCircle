@@ -181,6 +181,20 @@ export function GroupDetailsScreen({
                     <Text style={styles.linkSmall}>{t.demote}</Text>
                   </Pressable>
                 ) : null}
+                {isOwner ? (
+                  <Pressable
+                    onPress={() =>
+                      setConfirm({
+                        message: t.confirmTransferMessage(member.name),
+                        run: () => api.transferOwnership(groupId, member.id),
+                      })
+                    }
+                    disabled={busy}
+                    testID={`group-transfer-${member.id}`}
+                  >
+                    <Text style={styles.linkSmall}>{t.transferOwnership}</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() =>
                     setConfirm({

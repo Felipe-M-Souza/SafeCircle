@@ -7,6 +7,7 @@ import {
   changeRoleSchema,
   createGroupSchema,
   createInvitationSchema,
+  transferOwnershipSchema,
   updateGroupSchema,
 } from "./groups.schemas.js";
 import {
@@ -17,6 +18,7 @@ import {
   listMembers,
   listMyGroups,
   removeMember,
+  transferOwnership,
   updateGroupName,
 } from "./groups.service.js";
 import { createInvitation, listGroupInvitations, revokeInvitation } from "./invitations.service.js";
@@ -120,6 +122,22 @@ export async function groupsRoutes(
       actionOptions(request),
     );
     return member;
+  });
+
+  // Phase 12: transferência de propriedade (pré-requisito para excluir a conta
+  // sem desfazer o grupo). Só OWNER; alvo precisa ser membro e não o próprio.
+  app.post("/groups/:groupId/transfer-ownership", async (request, reply) => {
+    const params = request.params as { groupId: string };
+    const groupId = parseUuid(params.groupId, errors.groupNotFound);
+    const input = transferOwnershipSchema.parse(request.body);
+    await transferOwnership(
+      app.db,
+      request.auth.userId,
+      groupId,
+      input.userId,
+      actionOptions(request),
+    );
+    return reply.status(204).send();
   });
 
   // --- Convites do grupo ---

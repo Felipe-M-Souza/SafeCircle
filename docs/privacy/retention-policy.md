@@ -61,8 +61,13 @@ investigação de takeover. Depois de um mês ela só ocupa espaço.
 
 - **Exportação** (`GET /me/privacy/export`): não altera retenção; devolve o
   estado atual dos dados próprios.
-- **Exclusão de conta**: não implementada nesta fase. Mapeamento das
-  dependências e do bloqueio em `docs/decisions/0012-security-privacy-hardening.md`.
+- **Exclusão de conta** (Phase 12): `POST /me/delete-account`, com a senha atual.
+  Apaga o que é da pessoa (perfil, sessões, histórico de refresh, push
+  devices, alertas/check-ins/trajetos próprios com localização, confirmações,
+  convites, memberships e grupos em que era a única). A auditoria fica pelo
+  prazo de 180 dias com o ator anonimizado. Bloqueada enquanto houver grupo
+  próprio com outros membros ou emergência em andamento. Detalhes e decisão
+  por entidade no ADR 0013 §3.
 
 ## Garantias verificadas por teste
 

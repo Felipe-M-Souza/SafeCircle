@@ -1,0 +1,57 @@
+# E2E — Grupos (Phase 12 §26)
+# Ana cria grupo e convida Bruno; Bruno aceita e aparece como membro.
+# Usa as contas do seed (pnpm e2e:seed). O convite vai para o e-mail do Bruno.
+appId: com.safecircle.app
+env:
+  ANA: ana.e2e@safecircle.test
+  BRUNO: bruno.e2e@safecircle.test
+  PASSWORD: senha-e2e-segura-123
+  GROUP: ${'Grupo E2E ' + Date.now()}
+---
+# --- Ana ---
+- launchApp:
+    clearState: true
+- tapOn: "E-mail"
+- inputText: ${ANA}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible: "Olá, Ana E2E."
+- tapOn: "Meus grupos"
+- tapOn: "+ Criar grupo"
+- tapOn: "Nome do grupo"
+- inputText: ${GROUP}
+- hideKeyboard
+- tapOn: "Criar grupo"
+- assertVisible: ${GROUP}
+- tapOn: "Convidar pessoa"
+- tapOn: "E-mail"
+- inputText: ${BRUNO}
+- hideKeyboard
+- tapOn: "Enviar convite"
+- assertVisible: "Convite criado com sucesso."
+- back
+- back
+- back
+- tapOn:
+    id: "home-logout"
+
+# --- Bruno ---
+- tapOn: "E-mail"
+- inputText: ${BRUNO}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible: "Olá, Bruno E2E."
+- tapOn: "Convites recebidos"
+- assertVisible: ${GROUP}
+- tapOn: "Aceitar"
+- assertVisible: ${GROUP}
+- assertVisible: "Você é membro"
+- back
+- tapOn:
+    id: "home-logout"

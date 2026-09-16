@@ -1,0 +1,54 @@
+# E2E — Exclusão de conta (Phase 12 §33)
+# Conta nova sem bloqueios: consequências → senha → confirmação → volta para a
+# tela pública; o login com a conta apagada falha.
+appId: com.safecircle.app
+env:
+  EMAIL: ${'delete.' + Date.now() + '.e2e@safecircle.test'}
+  PASSWORD: senha-e2e-segura-123
+---
+- launchApp:
+    clearState: true
+- tapOn: "Criar conta"
+- tapOn: "Nome"
+- inputText: "Pessoa Que Sai"
+- tapOn: "E-mail"
+- inputText: ${EMAIL}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- tapOn: "Confirmar senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "register-submit"
+- assertVisible: "Olá, Pessoa Que Sai."
+- scrollUntilVisible:
+    element:
+      id: "home-delete-account"
+    direction: DOWN
+- tapOn:
+    id: "home-delete-account"
+- assertVisible: "Esta ação é permanente."
+- assertVisible: "O que será removido:"
+- tapOn:
+    id: "delete-account-continue"
+- assertVisible: "Digite sua senha para continuar."
+- tapOn:
+    id: "delete-account-password"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "delete-account-password-continue"
+- assertVisible: "Confirmar exclusão"
+- assertVisible: "CANCELAR"
+- tapOn:
+    id: "delete-account-confirm"
+# Sessão encerrada localmente: tela pública, sem reconexão.
+- assertVisible: "Entre na sua conta"
+- tapOn: "E-mail"
+- inputText: ${EMAIL}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible: "E-mail ou senha inválidos."

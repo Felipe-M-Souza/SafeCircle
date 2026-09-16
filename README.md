@@ -82,8 +82,16 @@ limite de corpo (413) e só JSON (415), WebSocket com validação de `Origin` e
 de sessão, exportação dos próprios dados (`GET /me/privacy/export`),
 `pnpm privacy:cleanup` consolidando toda a retenção e CI com menor privilégio,
 actions fixadas por SHA, Dependabot, auditoria de dependências e CodeQL (ver
-ADR 0012). Exclusão de conta **não** foi implementada e está registrada como
-RELEASE BLOCKER antes das lojas.
+ADR 0012). Phase 12 (E2E / Release Candidate) concluída: o bloqueador de
+exclusão de conta foi **resolvido** (`POST /me/delete-account` com senha,
+bloqueios explícitos e transferência de propriedade de grupo), existe uma
+suíte E2E que sobe o processo real da API (`pnpm e2e:api`, 21 cenários),
+smoke (`pnpm smoke:api`), `pnpm release:check`, `eas.json` com três perfis,
+flows Maestro, ensaios de migration, backup/restore e queda de banco, e os
+documentos de release em `docs/release/`. A v1 permanece **foreground-only**
+para localização. Classificação do RC 0.1.0-rc.1: **RC PREPARED — DEVICE
+VALIDATION PENDING** (sem aparelho físico nem credenciais EAS neste
+ambiente; ver ADR 0013).
 
 **Localização ao vivo (requisitos):** funciona com o app aberto (primeiro
 plano). O mapa usa `react-native-maps`: iOS usa Apple Maps; em builds de
@@ -219,10 +227,46 @@ Limitações conhecidas desta fase: rate limit e freio de login são **por
 instância**; não há MFA nem troca de senha; GPS spoofing é risco residual; a
 entrega de push continua at-least-once; as configurações de segurança do GitHub
 são manuais (`docs/security/repository-security.md`); TLS, encryption at rest e
-backups dependem da infraestrutura; e **exclusão de conta está pendente**:
+backups dependem da infraestrutura. A exclusão de conta, bloqueador desta
+fase, foi resolvida na Phase 12.
 
-> RELEASE BLOCKER — implementar fluxo completo de exclusão de conta antes da
-> publicação nas lojas.
+**E2E e Release Candidate (Phase 12):** decisões no ADR 0013; artefatos em
+`docs/release/` (checklist, bloqueadores, evidências, release notes, test
+report, plano de testes em aparelho, rollback, insumos de privacidade e de
+lojas).
+
+Exclusão de conta, no app em "Excluir minha conta" ou pela API, sempre com a
+senha atual:
+
+```text
+GET  /me/account-deletion                bloqueios e impacto
+POST /me/delete-account   { password }   exclui; 409 se OWNER de grupo com outros membros ou recurso ativo
+POST /groups/:groupId/transfer-ownership { userId }   OWNER passa a propriedade e vira ADMIN
+```
+
+Comandos de E2E e release:
+
+```bash
+pnpm e2e:api           # API real + PostgreSQL descartável, 21 cenários (roda no CI)
+pnpm e2e:reset         # zera o banco E2E     |  pnpm e2e:seed  # contas sintéticas
+pnpm e2e:mobile        # flows Maestro (exige development build + Maestro)
+pnpm smoke:api         # 9 etapas contra SMOKE_API_URL
+pnpm release:check     # todos os gates determinísticos do RC
+pnpm release:blockers  # bug bar (docs/release/release-blockers.md)
+```
+
+Variáveis novas (ver `.env.example`): `PUSH_PROVIDER` (`expo` | `noop`, este
+só fora de produção), `RATE_LIMIT_PROFILE` e `SCHEDULER_POLL_INTERVAL_MS`
+(ambiente E2E; ignorados em produção), `BUILD_DATE`. No mobile,
+`EXPO_PUBLIC_APP_ENV` (development | preview | production) e
+`EXPO_PUBLIC_GIT_SHA` são públicos e aparecem no rodapé da home.
+
+Limitações conhecidas desta fase: nenhuma validação em aparelho físico foi
+executada (push real, permissões, GPS, foreground/background, offline no app,
+deep links) e nenhum binário EAS foi gerado — ambos exigem aparelho e
+credenciais do proprietário e estão marcados `NOT EXECUTED` em
+`docs/release/test-report.md`. A localização ao vivo continua só em primeiro
+plano por decisão explícita. Não há tag de release nem publicação nas lojas.
 
 **Push (requisitos):** notificações funcionam apenas em build nativo
 (iOS/Android) — na web o recurso fica indisponível. Para obter o Expo Push

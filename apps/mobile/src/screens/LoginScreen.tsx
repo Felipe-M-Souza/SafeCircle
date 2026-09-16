@@ -83,6 +83,7 @@ export function LoginScreen({
             label={submitting ? t.submitting : t.submit}
             onPress={handleSubmit}
             loading={submitting}
+            testID="login-submit"
           />
 
           <View style={styles.footer}>

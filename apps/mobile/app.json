@@ -2,15 +2,39 @@
   "expo": {
     "name": "SafeCircle",
     "slug": "safecircle",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "safecircle",
     "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.safecircle.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O SafeCircle pode usar sua localização durante um alerta ou trajeto para ajudar seu grupo de confiança a encontrar você. A localização só é compartilhada enquanto o aplicativo está aberto.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.safecircle.app",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT"
+      ],
+      "usesCleartextTraffic": false,
+      "allowBackup": false
+    },
     "web": {
       "bundler": "metro"
     },

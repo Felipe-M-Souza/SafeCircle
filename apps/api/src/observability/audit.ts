@@ -34,6 +34,10 @@ export const AUDIT_EVENT_TYPES = [
   "AUTH_OTHER_SESSIONS_REVOKED",
   "AUTH_REFRESH_REUSE_DETECTED",
   "PRIVACY_EXPORT_REQUESTED",
+  // Exclusão de conta e propriedade de grupo (Phase 12)
+  "ACCOUNT_DELETION_REQUESTED",
+  "ACCOUNT_DELETION_COMPLETED",
+  "GROUP_OWNERSHIP_TRANSFERRED",
   // Grupos
   "GROUP_CREATED",
   "GROUP_MEMBER_REMOVED",
@@ -92,6 +96,8 @@ export const ALLOWED_METADATA_KEYS = [
   "liveLocationEnabled",
   // Phase 11: quantas sessões uma revogação em lote atingiu (número, nunca ids).
   "revokedCount",
+  // Phase 12: quantos grupos (sem outros membros) foram apagados com a conta.
+  "groupsDeleted",
 ] as const;
 
 export type AuditMetadataKey = (typeof ALLOWED_METADATA_KEYS)[number];

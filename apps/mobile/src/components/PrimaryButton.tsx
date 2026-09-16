@@ -6,6 +6,8 @@ interface PrimaryButtonProps {
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
+  /** Só onde a estabilidade do E2E exige (Phase 12). */
+  testID?: string;
 }
 
 export function PrimaryButton({
@@ -13,6 +15,7 @@ export function PrimaryButton({
   onPress,
   loading = false,
   disabled = false,
+  testID,
 }: PrimaryButtonProps): React.JSX.Element {
   const isDisabled = disabled || loading;
   return (
@@ -20,6 +23,7 @@ export function PrimaryButton({
       accessibilityRole="button"
       onPress={onPress}
       disabled={isDisabled}
+      testID={testID}
       style={({ pressed }) => [
         styles.button,
         isDisabled ? styles.disabled : null,

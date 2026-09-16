@@ -87,6 +87,8 @@ const envSchema = z
     // Notificações push (Phase 4): token de acesso opcional da Expo Push API.
     // Segredo do backend — NUNCA versionar nem expor ao app.
     EXPO_ACCESS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Phase 12: `noop` para E2E/staging sem credenciais — recusado em produção.
+    PUSH_PROVIDER: z.preprocess(emptyToUndefined, z.enum(["expo", "noop"]).default("expo")),
 
     // Observabilidade (Phase 9).
     // /metrics é desligado por padrão: só existe quando explicitamente habilitado.
@@ -96,6 +98,18 @@ const envSchema = z
     // Identificação da build (valores públicos, não são secrets).
     APP_VERSION: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
     GIT_SHA: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
+    BUILD_DATE: z.preprocess(emptyToUndefined, z.string().max(64).optional()),
+
+    // Phase 12 — ambiente E2E. Nunca válidos em produção: `production` ignora
+    // o perfil relaxado, e o intervalo tem piso de 1 s.
+    RATE_LIMIT_PROFILE: z.preprocess(
+      emptyToUndefined,
+      z.enum(["production", "relaxed"]).optional(),
+    ),
+    SCHEDULER_POLL_INTERVAL_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1_000).max(300_000).default(15_000),
+    ),
 
     // Outbox transacional (Phase 10). Limites impostos aqui para que uma
     // configuração errada não vire busy loop nem lote gigante em produção.
@@ -160,6 +174,9 @@ const envSchema = z
         "Em produção a outbox precisa estar ligada: sem worker, push e auditoria ficam pendentes para sempre.",
       );
     }
+    if (value.PUSH_PROVIDER !== "expo") {
+      issue("PUSH_PROVIDER", "Em produção o provedor de push precisa ser `expo`.");
+    }
     if (value.METRICS_ENABLED && !value.METRICS_TOKEN) {
       issue(
         "METRICS_TOKEN",
@@ -190,10 +207,15 @@ export interface Config {
   /** Tetos de rate limit: relaxados em NODE_ENV=test, reais nos demais. */
   rateLimitProfile: RateLimitProfile;
   expoAccessToken?: string;
+  /** `expo` em produção; `noop` só para E2E/staging sem credenciais. */
+  pushProvider: "expo" | "noop";
   metricsEnabled: boolean;
   metricsToken?: string;
   appVersion?: string;
   gitSha?: string;
+  buildDate?: string;
+  /** Intervalo de polling dos schedulers de vencimento (ms). */
+  schedulerPollIntervalMs: number;
   outboxEnabled: boolean;
   outboxPollIntervalMs: number;
   outboxBatchSize: number;
@@ -238,12 +260,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     strictOrigins: env.NODE_ENV === "production" || corsAllowedOrigins.length > 0,
     hstsEnabled: env.HSTS_ENABLED,
     trustProxy: trust === "true" ? true : trust === "false" ? false : Number(trust),
-    rateLimitProfile: env.NODE_ENV === "test" ? "relaxed" : "production",
+    // Produção nunca relaxa. Fora dela, o E2E pode pedir `relaxed` explicitamente.
+    rateLimitProfile:
+      env.NODE_ENV === "production"
+        ? "production"
+        : (env.RATE_LIMIT_PROFILE ?? (env.NODE_ENV === "test" ? "relaxed" : "production")),
     expoAccessToken: env.EXPO_ACCESS_TOKEN,
+    pushProvider: env.PUSH_PROVIDER,
     metricsEnabled: env.METRICS_ENABLED,
     metricsToken: env.METRICS_TOKEN,
     appVersion: env.APP_VERSION,
     gitSha: env.GIT_SHA,
+    buildDate: env.BUILD_DATE,
+    schedulerPollIntervalMs: env.SCHEDULER_POLL_INTERVAL_MS,
     outboxEnabled: env.OUTBOX_ENABLED,
     outboxPollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
     outboxBatchSize: env.OUTBOX_BATCH_SIZE,
