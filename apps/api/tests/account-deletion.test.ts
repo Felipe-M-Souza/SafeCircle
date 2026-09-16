@@ -485,17 +485,20 @@ describe("Exclusão de conta — auditoria e outbox", () => {
     >`
       SELECT event_type, actor_user_id, target_id, metadata FROM audit_events
        WHERE event_type IN ('ACCOUNT_DELETION_REQUESTED', 'ACCOUNT_DELETION_COMPLETED')
-       ORDER BY created_at
     `;
-    expect(rows.map((r) => r.event_type)).toEqual([
-      "ACCOUNT_DELETION_REQUESTED",
+    // Os dois eventos são processados no mesmo lote do worker e podem empatar em
+    // created_at; a asserção não depende da ordem de inserção.
+    const byType = new Map(rows.map((r) => [r.event_type, r]));
+    expect([...byType.keys()].sort()).toEqual([
       "ACCOUNT_DELETION_COMPLETED",
+      "ACCOUNT_DELETION_REQUESTED",
     ]);
+    expect(rows).toHaveLength(2);
     for (const row of rows) {
       expect(row.actor_user_id).toBeNull();
       expect(row.target_id).toBe(user.userId);
     }
-    expect(rows[1]?.metadata).toEqual({ groupsDeleted: 1 });
+    expect(byType.get("ACCOUNT_DELETION_COMPLETED")?.metadata).toEqual({ groupsDeleted: 1 });
 
     // Nenhuma linha antiga aponta mais para a pessoa; os eventos continuam lá.
     const [after] = await cleaner.sql<{ count: number }[]>`
