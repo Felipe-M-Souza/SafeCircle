@@ -10,19 +10,20 @@ PostgreSQL 16 em container. Data: 2026-09-16.
 
 ## Suítes automatizadas
 
-| Suíte                                                                 | Ambiente                          | Resultado                                     | Evidência                      |
-| --------------------------------------------------------------------- | --------------------------------- | --------------------------------------------- | ------------------------------ |
-| API — integração (`pnpm --filter api test`)                           | local + CI                        | PASS — 38 arquivos, 502 testes                | saída do Vitest; CI da branch  |
-| API — segurança (`tests/security/`, Phase 11)                         | local + CI                        | PASS — 151 testes (parte dos 502)             | idem                           |
-| API — exclusão de conta (`tests/account-deletion.test.ts`)            | local + CI                        | PASS — 17 testes                              | idem                           |
-| API — transferência de propriedade (`tests/groups-ownership.test.ts`) | local + CI                        | PASS — 5 testes                               | idem                           |
-| Mobile — Jest/RNTL (`pnpm --filter mobile test`)                      | local + CI                        | PASS — 35 suítes, 195 testes                  | idem                           |
-| E2E API (`pnpm e2e:api`, processo real + banco descartável)           | local + CI                        | PASS — 8 arquivos, 21 cenários                | saída do Vitest E2E; CI        |
-| Smoke API (`pnpm smoke:api`)                                          | local, API real em 127.0.0.1:3460 | PASS — 9 etapas em 402 ms                     | saída do comando (rc-evidence) |
-| Lint, format, typecheck, build                                        | local + CI                        | PASS                                          | `pnpm release:check`; CI       |
-| `pnpm security:audit`                                                 | local + CI                        | PASS — 0 high/critical, 2 moderate com waiver | `vulnerability-waivers.md`     |
-| CodeQL                                                                | CI (PR)                           | ver `rc-evidence.md`                          | Aba Security                   |
-| `pnpm release:blockers`                                               | local + CI                        | PASS — BLOCKER 0, HIGH sem decisão 0          | `release-blockers.md`          |
+| Suíte                                                                 | Ambiente                          | Resultado                                                            | Evidência                      |
+| --------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------- | ------------------------------ |
+| API — integração (`pnpm --filter api test`)                           | local + CI                        | PASS — 39 arquivos, 503 testes                                       | saída do Vitest; CI da branch  |
+| API — segurança (`tests/security/`, Phase 11)                         | local + CI                        | PASS — 151 testes (parte dos 503)                                    | idem                           |
+| API — exclusão de conta (`tests/account-deletion.test.ts`)            | local + CI                        | PASS — 17 testes                                                     | idem                           |
+| API — transferência de propriedade (`tests/groups-ownership.test.ts`) | local + CI                        | PASS — 5 testes                                                      | idem                           |
+| API — shutdown realtime (`tests/realtime-shutdown.test.ts`)           | local + CI                        | PASS — 1 teste: `app.close()` fecha sockets com 1001/SERVER_SHUTDOWN | idem                           |
+| Mobile — Jest/RNTL (`pnpm --filter mobile test`)                      | local + CI                        | PASS — 35 suítes, 195 testes                                         | idem                           |
+| E2E API (`pnpm e2e:api`, processo real + banco descartável)           | local + CI                        | PASS — 8 arquivos, 21 cenários                                       | saída do Vitest E2E; CI        |
+| Smoke API (`pnpm smoke:api`)                                          | local, API real em 127.0.0.1:3460 | PASS — 9 etapas em 402 ms                                            | saída do comando (rc-evidence) |
+| Lint, format, typecheck, build                                        | local + CI                        | PASS                                                                 | `pnpm release:check`; CI       |
+| `pnpm security:audit`                                                 | local + CI                        | PASS — 0 high/critical, 2 moderate com waiver                        | `vulnerability-waivers.md`     |
+| CodeQL                                                                | CI (PR)                           | ver `rc-evidence.md`                                                 | Aba Security                   |
+| `pnpm release:blockers`                                               | local + CI                        | PASS — BLOCKER 0, HIGH sem decisão 0                                 | `release-blockers.md`          |
 
 ## Cenários E2E da API (21)
 
@@ -39,23 +40,28 @@ PostgreSQL 16 em container. Data: 2026-09-16.
 
 ## Ensaios operacionais executados (local, dados sintéticos)
 
-| Ensaio                                                   | Resultado         | Números medidos                                                                                                                                                                                                                                                                                 |
-| -------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Migrations do zero (`0000`–`0010`)                       | PASS              | 3.975 ms incluindo startup do tsx; 11 registros; 19 tabelas                                                                                                                                                                                                                                     |
-| Reexecução idempotente das migrations                    | PASS              | 2.214 ms, sem alterações                                                                                                                                                                                                                                                                        |
-| Migration sobre dataset sintético restaurado             | PASS              | 2.404 ms (no-op)                                                                                                                                                                                                                                                                                |
-| Backup/restore (`pg_dump -Fc` / `pg_restore`)            | PASS              | dump 320 KB em 292 ms; restore em 521 ms; contagens idênticas (users 24, groups 11, alerts 4, outbox 2.025, audit 900, sessions 27)                                                                                                                                                             |
-| Queda do banco com API viva                              | PASS              | `/ready` → 503 `database: fail`; `/health` → 200; após religar, `/ready` 200 em 1 s; alerta novo teve os 3 eventos da outbox PROCESSED                                                                                                                                                          |
-| Restart da API com backlog na outbox                     | PASS (E2E)        | ver `outbox-recovery.e2e.ts`                                                                                                                                                                                                                                                                    |
-| Retenção (`pnpm privacy:cleanup`)                        | PASS              | 6 etapas, exit 0; teste de integração prova que ACTIVE é preservado                                                                                                                                                                                                                             |
-| Carga moderada (`tests/load/api-load.mjs`, 30 VUs, 20 s) | PASS              | 10.825 req em 20,8 s (520 req/s), 0 erros; p95: GET /alerts 56,6 ms, GET /groups 78,6 ms, GET /me/sessions 54,6 ms, POST /alerts 198 ms, login 436 ms (Argon2); séries de métricas 442→500 (rotas/status novos, não usuários); RSS 165→307 MB sob carga, 206 MB em repouso depois; `/ready` 200 |
-| Exclusão de conta concorrente                            | PASS (integração) | uma 204, outra 401; um único evento COMPLETED                                                                                                                                                                                                                                                   |
+| Ensaio                                                   | Resultado               | Números medidos                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migrations do zero (`0000`–`0010`)                       | PASS                    | 3.975 ms incluindo startup do tsx; 11 registros; 19 tabelas                                                                                                                                                                                                                                     |
+| Reexecução idempotente das migrations                    | PASS                    | 2.214 ms, sem alterações                                                                                                                                                                                                                                                                        |
+| Migration sobre dataset sintético restaurado             | PASS                    | 2.404 ms (no-op)                                                                                                                                                                                                                                                                                |
+| Backup/restore (`pg_dump -Fc` / `pg_restore`)            | PASS                    | dump 320 KB em 292 ms; restore em 521 ms; contagens idênticas (users 24, groups 11, alerts 4, outbox 2.025, audit 900, sessions 27)                                                                                                                                                             |
+| Queda do banco com API viva                              | PASS                    | `/ready` → 503 `database: fail`; `/health` → 200; após religar, `/ready` 200 em 1 s; alerta novo teve os 3 eventos da outbox PROCESSED                                                                                                                                                          |
+| Restart da API com backlog na outbox                     | PASS (E2E)              | ver `outbox-recovery.e2e.ts`                                                                                                                                                                                                                                                                    |
+| Retenção (`pnpm privacy:cleanup`)                        | PASS                    | 6 etapas, exit 0; teste de integração prova que ACTIVE é preservado                                                                                                                                                                                                                             |
+| Carga moderada (`tests/load/api-load.mjs`, 30 VUs, 20 s) | PASS                    | 10.825 req em 20,8 s (520 req/s), 0 erros; p95: GET /alerts 56,6 ms, GET /groups 78,6 ms, GET /me/sessions 54,6 ms, POST /alerts 198 ms, login 436 ms (Argon2); séries de métricas 442→500 (rotas/status novos, não usuários); RSS 165→307 MB sob carga, 206 MB em repouso depois; `/ready` 200 |
+| Graceful shutdown (SIGTERM)                              | PASS (E2E no CI, Linux) | socket 1001/`SERVER_SHUTDOWN`; logs `shutdown_started`/`shutdown_completed`; execução CI 35055568625                                                                                                                                                                                            |
+| Exclusão de conta concorrente                            | PASS (integração)       | uma 204, outra 401; um único evento COMPLETED                                                                                                                                                                                                                                                   |
 
-Observação sobre o ensaio de graceful shutdown: no Windows o `kill` do processo
-não entrega SIGTERM, então os logs `shutdown_started`/`shutdown_completed` não
-foram observados aqui. O E2E de recuperação aceita fechamento 1001 (limpo) ou
-1006 (abrupto). **Graceful shutdown: NOT EXECUTED de forma verificável neste
-ambiente**; deve ser observado em Linux/staging (item do checklist).
+Graceful shutdown: no Windows o `kill` do processo não entrega SIGTERM (o
+processo morre abrupto, socket 1006), então o caminho limpo não é observável
+localmente. **No CI (Linux) o E2E de recuperação da outbox exige o caminho
+limpo**: SIGTERM → socket fechado com 1001/`SERVER_SHUTDOWN` e logs
+`shutdown_started`/`shutdown_completed` — verificado na execução CI
+35055568625 (commit 55dccc8). Essa exigência encontrou um defeito real: o
+`preClose` padrão do `@fastify/websocket` fechava os clientes sem status (1005)
+antes do hub; corrigido com um hook `preClose` próprio registrado antes do
+plugin (teste de integração `tests/realtime-shutdown.test.ts`).
 
 ## NOT EXECUTED — e por quê
 
@@ -70,7 +76,6 @@ ambiente**; deve ser observado em Linux/staging (item do checklist).
 | Deep links em aparelho                                        | Sem aparelho                                                                                                 |
 | Builds EAS (Android APK/AAB, iOS)                             | Sem credenciais EAS/Apple/Google — requer ação do proprietário                                               |
 | Inspeção de bundle gerado                                     | Depende da build EAS; a inspeção estática do código mostra que o app lê apenas `EXPO_PUBLIC_*`               |
-| Graceful shutdown (logs)                                      | Não observável no Windows; validar em Linux/staging                                                          |
 | Acessibilidade, font scaling, timezone/clock skew em aparelho | Sem aparelho                                                                                                 |
 | Bateria/memória em sessão prolongada no aparelho              | Sem aparelho                                                                                                 |
 | Carga com k6                                                  | k6 não instalado; script em `tests/load/k6-api-load.js`; a carga foi medida com `api-load.mjs`               |

@@ -206,7 +206,8 @@ produção ainda são placeholders.
   links, offline no app, background e bateria são `NOT EXECUTED`.
 - Nenhum binário foi gerado (sem credenciais).
 - Graceful shutdown não é observável no ambiente Windows de desenvolvimento;
-  validar em Linux/staging.
+  é verificado no CI (Linux) pelo E2E de recuperação da outbox: SIGTERM →
+  socket 1001/`SERVER_SHUTDOWN` e logs `shutdown_started`/`shutdown_completed`.
 - Sem staging real: configuração preparada, endpoint não inventado.
 
 ## Itens para a Phase 13
