@@ -261,6 +261,23 @@ só fora de produção), `RATE_LIMIT_PROFILE` e `SCHEDULER_POLL_INTERVAL_MS`
 `EXPO_PUBLIC_APP_ENV` (development | preview | production) e
 `EXPO_PUBLIC_GIT_SHA` são públicos e aparecem no rodapé da home.
 
+### Marca: ícone, splash e logo
+
+As fontes ficam em `apps/mobile/assets/brand/` (ícone 1254×1254 e logo com
+transparência, entregues pelo proprietário). Os recursos usados pelo app são
+gerados e commitados por:
+
+```bash
+pnpm brand:assets
+```
+
+O script (`scripts/brand-assets.mjs`, `sharp`) produz `icon.png`,
+`adaptive-icon.png` (arte a 72% para a zona segura do Android, fundo
+`#014D91`), `splash-icon.png`, `logo.png` e `favicon.png`, e registra medidas
+e cores em `assets/brand/generated.json`. Nas telas o logo entra pelo
+componente `BrandLogo`, que mantém o rótulo acessível "SafeCircle". Qualquer
+mudança de ícone, splash ou logo exige nova build EAS.
+
 Limitações conhecidas desta fase: nenhuma validação em aparelho físico foi
 executada (push real, permissões, GPS, foreground/background, offline no app,
 deep links) e nenhum binário EAS foi gerado — ambos exigem aparelho e
