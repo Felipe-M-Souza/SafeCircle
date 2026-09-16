@@ -261,6 +261,23 @@ só fora de produção), `RATE_LIMIT_PROFILE` e `SCHEDULER_POLL_INTERVAL_MS`
 `EXPO_PUBLIC_APP_ENV` (development | preview | production) e
 `EXPO_PUBLIC_GIT_SHA` são públicos e aparecem no rodapé da home.
 
+### API de preview no Railway
+
+A API roda no Railway (projeto `SafeCircle`, serviços `api` e `Postgres`)
+em https://api-production-9e007.up.railway.app, a partir de
+`apps/api/Dockerfile` e `railway.json`. O container aplica as migrations e
+sobe a API; segredos ficam só nas variáveis do serviço (o `JWT_ACCESS_SECRET`
+foi gerado pelo próprio Railway). Deploys são manuais, a partir da raiz:
+
+```bash
+railway whoami
+railway up --service api --detach
+railway logs --service api --deployment
+```
+
+É um ambiente de preview com dados sintéticos, sem backup agendado nem SLA.
+Detalhes, variáveis e limitações em `docs/release/railway-api-preview.md`.
+
 Limitações conhecidas desta fase: nenhuma validação em aparelho físico foi
 executada (push real, permissões, GPS, foreground/background, offline no app,
 deep links) e nenhum binário EAS foi gerado — ambos exigem aparelho e
