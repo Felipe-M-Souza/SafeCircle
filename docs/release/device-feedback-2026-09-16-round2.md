@@ -28,6 +28,13 @@ SDK não é cobrado; alerta de orçamento recomendado). Ela vive em
 Sem a chave (ou com ela vazia) o app funciona sem mapa embutido, em vez de
 fechar; com ela, o mapa volta. No iOS o MapKit não exige chave.
 
+**Correção da correção (mesma data, build `e7109c69`):** o app não enxerga
+`android.config` em tempo de execução — o Expo remove esse bloco da configuração
+pública — e por isso continuou mostrando o cartão mesmo com a chave no APK. A
+decisão passou a vir do sinalizador público `extra.googleMapsApiKeyConfigured`,
+mantido coerente com a chave por `src/__tests__/app-config.test.ts` (chave
+presente ⇔ `true`).
+
 ## Testes adicionados
 
 | Teste                                                                      | O que prova                                                                                                                                                                |

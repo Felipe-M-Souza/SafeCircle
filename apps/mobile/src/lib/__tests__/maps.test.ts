@@ -5,7 +5,8 @@ import { externalMapUrl, isNativeMapAvailable } from "../maps";
 /**
  * Achado em aparelho (2026-09-16): no Android sem chave do Google Maps o
  * MapView derruba o app. O helper decide, antes de montar o mapa, se a build
- * atual pode exibi-lo.
+ * atual pode exibi-lo. Como o Expo remove `android.config` da configuração
+ * pública, a decisão em produção vem do sinalizador `extra.googleMapsApiKeyConfigured`.
  */
 type MutableConstants = { expoConfig: Record<string, unknown> | null };
 const constants = Constants as unknown as MutableConstants;
@@ -22,9 +23,13 @@ afterEach(() => {
 });
 
 describe("isNativeMapAvailable", () => {
-  it("Android sem chave do Google Maps: mapa indisponível (evita o crash)", () => {
+  it("Android sem sinalizador nem chave: mapa indisponível (evita o crash)", () => {
     setPlatform("android");
-    constants.expoConfig = { android: { config: {} } };
+    constants.expoConfig = { extra: {}, android: { config: {} } };
+    expect(isNativeMapAvailable()).toBe(false);
+    constants.expoConfig = { extra: { googleMapsApiKeyConfigured: false } };
+    expect(isNativeMapAvailable()).toBe(false);
+    constants.expoConfig = { extra: { googleMapsApiKeyConfigured: "true" } };
     expect(isNativeMapAvailable()).toBe(false);
     constants.expoConfig = { android: { config: { googleMaps: { apiKey: "   " } } } };
     expect(isNativeMapAvailable()).toBe(false);
@@ -32,7 +37,13 @@ describe("isNativeMapAvailable", () => {
     expect(isNativeMapAvailable()).toBe(false);
   });
 
-  it("Android com chave configurada: mapa disponível", () => {
+  it("Android com o sinalizador público (build de produção): mapa disponível", () => {
+    setPlatform("android");
+    constants.expoConfig = { extra: { googleMapsApiKeyConfigured: true } };
+    expect(isNativeMapAvailable()).toBe(true);
+  });
+
+  it("Android com a chave visível (desenvolvimento): mapa disponível", () => {
     setPlatform("android");
     constants.expoConfig = {
       android: { config: { googleMaps: { apiKey: "AIza-chave-sintetica" } } },
@@ -45,6 +56,7 @@ describe("isNativeMapAvailable", () => {
     constants.expoConfig = { android: { config: {} } };
     expect(isNativeMapAvailable()).toBe(true);
     setPlatform("web");
+    constants.expoConfig = { extra: { googleMapsApiKeyConfigured: true } };
     expect(isNativeMapAvailable()).toBe(false);
   });
 });
