@@ -33,8 +33,9 @@ export const REALTIME_MAX_PAYLOAD_BYTES = 1024;
  * - Autenticação obrigatória no handshake via `Authorization: Bearer <access>`
  *   (mesmo `app.authenticate` do REST: assinatura, expiração, iss/aud, sub/sid
  *   **e sessão viva**). Sem token/inválido/expirado → HTTP 401 e nenhum socket.
- * - `Origin` presente e fora da allow-list → 403 antes de autenticar. Cliente
- *   nativo não envia `Origin` e passa; a autenticação continua decidindo.
+ * - `Origin` presente e fora da allow-list → 403 antes de autenticar. O
+ *   WebSocket do React Native envia `Origin` igual à origem da própria API
+ *   (same-origin) e passa; a autenticação continua decidindo.
  * - Handshake com rate limit por IP: reconexão legítima é rara.
  * - A conexão é encerrada quando o access token expira (4401) ou quando a
  *   sessão é revogada (4403): o cliente renova via REST e reconecta.
@@ -60,7 +61,9 @@ export const realtimePlugin = fp(
     app.decorate("realtime", new HubRealtimePublisher(app.db, hub, app.log));
 
     const enforceOrigin = async (request: FastifyRequest) => {
-      if (!isOriginAllowed(options.originPolicy, request.headers.origin)) {
+      // `protocol`/`host` já consideram X-Forwarded-* quando há trustProxy.
+      const selfOrigin = `${request.protocol}://${request.host}`;
+      if (!isOriginAllowed(options.originPolicy, request.headers.origin, selfOrigin)) {
         request.log.warn({ event: "realtime_origin_rejected" }, "Origem web recusada no handshake");
         throw errors.originNotAllowed();
       }

@@ -2,9 +2,12 @@
  * Allow-list de origens web (Phase 11).
  *
  * Usada em dois lugares com a mesma semântica: CORS (respostas a navegadores)
- * e o handshake do WebSocket. O app nativo não envia `Origin` e não depende
- * disso — a autenticação continua sendo o Bearer, sempre. Origem permitida
- * **não** substitui autenticação; origem proibida só fecha a porta mais cedo.
+ * e o handshake do WebSocket. O `fetch` do app nativo não envia `Origin`, mas
+ * o WebSocket do React Native (Android/OkHttp e iOS) envia `Origin` igual à
+ * própria origem da API (`https://host` derivado da URL `wss://`); por isso a
+ * origem da própria requisição é sempre aceita. A autenticação continua sendo
+ * o Bearer, sempre. Origem permitida **não** substitui autenticação; origem
+ * proibida só fecha a porta mais cedo.
  */
 
 /** Origem é `scheme://host[:port]`, sem path, sem wildcard. */
@@ -61,12 +64,20 @@ export function createOriginPolicy(allowedOrigins: string[], strict: boolean): O
 
 /**
  * Decide se uma requisição com o header `Origin` informado pode prosseguir.
- * Sem header (cliente nativo, curl, server-to-server): sempre pode — a
- * autenticação é quem decide.
+ * Sem header (fetch nativo, curl, server-to-server): sempre pode — a
+ * autenticação é quem decide. `selfOrigin` é a origem da própria API nesta
+ * requisição (`scheme://host[:port]`): um `Origin` idêntico a ela é
+ * same-origin (caso do WebSocket do React Native) e passa mesmo em modo estrito.
  */
-export function isOriginAllowed(policy: OriginPolicy, originHeader: unknown): boolean {
+export function isOriginAllowed(
+  policy: OriginPolicy,
+  originHeader: unknown,
+  selfOrigin?: string,
+): boolean {
   const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
   if (typeof origin !== "string" || origin === "") return true;
   if (!policy.strict) return true;
-  return policy.allowed.has(normalizeOrigin(origin));
+  const normalized = normalizeOrigin(origin);
+  if (selfOrigin && normalized === normalizeOrigin(selfOrigin)) return true;
+  return policy.allowed.has(normalized);
 }
