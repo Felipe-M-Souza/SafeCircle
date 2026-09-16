@@ -32,7 +32,6 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT"
       ],
-      "usesCleartextTraffic": false,
       "allowBackup": false
     },
     "web": {
@@ -54,6 +53,14 @@
         {
           "color": "#F87171",
           "defaultChannel": "emergency"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false
+          }
         }
       ]
     ]
