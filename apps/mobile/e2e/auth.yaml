@@ -1,0 +1,38 @@
+# E2E — Autenticação (Phase 12 §25)
+# registro → home → logout → login → home → logout
+appId: com.safecircle.app
+env:
+  EMAIL: ${'auth.' + Date.now() + '.e2e@safecircle.test'}
+  PASSWORD: senha-e2e-segura-123
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Entre na sua conta"
+- tapOn: "Criar conta"
+- assertVisible: "Crie sua conta"
+- tapOn: "Nome"
+- inputText: "Pessoa E2E"
+- tapOn: "E-mail"
+- inputText: ${EMAIL}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- tapOn: "Confirmar senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "register-submit"
+- assertVisible: "Olá, Pessoa E2E."
+- tapOn:
+    id: "home-logout"
+- assertVisible: "Entre na sua conta"
+- tapOn: "E-mail"
+- inputText: ${EMAIL}
+- tapOn: "Senha"
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible: "Olá, Pessoa E2E."
+- tapOn:
+    id: "home-logout"
+- assertVisible: "Entre na sua conta"

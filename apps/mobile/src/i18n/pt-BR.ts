@@ -286,7 +286,7 @@ export const ptBR = {
     center: "CENTRALIZAR",
     mapUnavailable: "Mapa indisponível nesta plataforma.",
     foregroundOnlyNote:
-      "O compartilhamento funciona com o SafeCircle aberto. Em segundo plano, a posição pode deixar de ser atualizada.",
+      "A localização ao vivo é atualizada enquanto o SafeCircle está aberto. Em segundo plano ou com a tela bloqueada, a posição não é atualizada.",
   },
   alertStatus: {
     ACTIVE: "ATIVO",
@@ -367,6 +367,10 @@ export const ptBR = {
     confirmLeaveMessage: "Tem certeza de que deseja sair deste grupo?",
     confirmRemoveTitle: "Remover membro",
     confirmRemoveMessage: (name: string) => `Remover ${name} do grupo?`,
+    // Phase 12
+    transferOwnership: "Transferir propriedade",
+    confirmTransferMessage: (name: string) =>
+      `Tornar ${name} proprietário do grupo? Você passa a ser administrador.`,
     cancel: "Cancelar",
     confirm: "Confirmar",
   },
@@ -383,6 +387,54 @@ export const ptBR = {
     accept: "Aceitar",
     reject: "Recusar",
     empty: "Você não tem convites pendentes.",
+  },
+  // Phase 12 — exclusão de conta (sem dark patterns: consequências antes da senha)
+  accountDeletion: {
+    entry: "Excluir minha conta",
+    title: "Excluir minha conta",
+    permanent: "Esta ação é permanente.",
+    consequences:
+      "Seus dados pessoais serão removidos conforme a política de retenção aplicável. Alguns registros de auditoria podem permanecer anonimizados pelo período definido.",
+    loading: "Verificando sua conta...",
+    blockersTitle: "Antes de excluir, resolva:",
+    blockerOwnership: (name: string, others: number) =>
+      others === 1
+        ? `Você é proprietário do grupo "${name}", que tem 1 outro membro. Transfira a propriedade ou remova o membro.`
+        : `Você é proprietário do grupo "${name}", que tem ${others} outros membros. Transfira a propriedade ou remova os membros.`,
+    blockerAlerts: (count: number) =>
+      count === 1
+        ? "Você tem 1 alerta ativo. Encerre-o antes."
+        : `Você tem ${count} alertas ativos. Encerre-os antes.`,
+    blockerCheckins: (count: number) =>
+      count === 1
+        ? "Você tem 1 check-in em andamento. Confirme ou cancele antes."
+        : `Você tem ${count} check-ins em andamento. Confirme ou cancele antes.`,
+    blockerJourneys: (count: number) =>
+      count === 1
+        ? "Você tem 1 trajeto em andamento. Confirme a chegada ou cancele antes."
+        : `Você tem ${count} trajetos em andamento. Confirme a chegada ou cancele antes.`,
+    impactTitle: "O que será removido:",
+    impactGroups: (count: number) =>
+      count === 1
+        ? "1 grupo em que você é a única pessoa"
+        : `${count} grupos em que você é a única pessoa`,
+    impactMemberships: (count: number) =>
+      count === 1 ? "sua participação em 1 grupo" : `sua participação em ${count} grupos`,
+    impactAlerts: (count: number) => (count === 1 ? "1 alerta seu" : `${count} alertas seus`),
+    impactCheckins: (count: number) => (count === 1 ? "1 check-in seu" : `${count} check-ins seus`),
+    impactJourneys: (count: number) => (count === 1 ? "1 trajeto seu" : `${count} trajetos seus`),
+    impactDevices: (count: number) =>
+      count === 1 ? "1 dispositivo de notificação" : `${count} dispositivos de notificação`,
+    impactSessions: (count: number) => (count === 1 ? "1 sessão ativa" : `${count} sessões ativas`),
+    passwordPrompt: "Digite sua senha para continuar.",
+    passwordLabel: "Senha atual",
+    continue: "CONTINUAR",
+    finalTitle: "Confirmar exclusão",
+    finalMessage: "Depois disto não há como recuperar a conta. Excluir mesmo assim?",
+    confirm: "EXCLUIR CONTA",
+    cancel: "CANCELAR",
+    deleting: "Excluindo...",
+    blockedNow: "Algo mudou desde a verificação. Revise os itens acima e tente de novo.",
   },
   validation: {
     nameRequired: "Informe seu nome.",
@@ -409,6 +461,13 @@ export const ptBR = {
     UNSUPPORTED_MEDIA_TYPE: "Formato de dados não suportado.",
     ORIGIN_NOT_ALLOWED: "Esta origem não tem permissão para acessar o serviço.",
     SESSION_NOT_FOUND: "Sessão não encontrada.",
+    // Phase 12 — exclusão de conta e propriedade de grupo
+    ACCOUNT_DELETION_BLOCKED_BY_GROUP_OWNERSHIP:
+      "Transfira a propriedade dos seus grupos com outros membros antes de excluir a conta.",
+    ACCOUNT_DELETION_BLOCKED_BY_ACTIVE_RESOURCES:
+      "Encerre seus alertas, check-ins e trajetos em andamento antes de excluir a conta.",
+    OWNERSHIP_TRANSFER_TARGET_INVALID:
+      "A propriedade só pode ser transferida para outro membro do grupo.",
     NETWORK: "Não foi possível conectar ao servidor.",
     // Phase 2 — Grupos de Confiança
     GROUP_NOT_FOUND: "Grupo não encontrado.",

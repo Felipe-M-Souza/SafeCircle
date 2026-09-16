@@ -19,6 +19,7 @@ import { GroupCheckinsScreen } from "./checkins/GroupCheckinsScreen";
 import { NewJourneyScreen } from "./journeys/NewJourneyScreen";
 import { JourneyDetailsScreen } from "./journeys/JourneyDetailsScreen";
 import { GroupJourneysScreen } from "./journeys/GroupJourneysScreen";
+import { DeleteAccountScreen } from "./account/DeleteAccountScreen";
 
 function screenFor(target: PendingTarget): Screen {
   if (target.kind === "alert") return { name: "alertDetails", alertId: target.alertId };
@@ -99,6 +100,8 @@ export function AuthenticatedApp(): React.JSX.Element {
       return (
         <GroupJourneysScreen nav={nav} groupId={current.groupId} groupName={current.groupName} />
       );
+    case "deleteAccount":
+      return <DeleteAccountScreen nav={nav} />;
     case "home":
     default:
       return <AuthenticatedHomeScreen nav={nav} />;
