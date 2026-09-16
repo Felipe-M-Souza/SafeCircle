@@ -12,9 +12,10 @@ com testes que falham sem a correção.
 ## Sobre o mapa
 
 A chave do Maps SDK for Android é pública por natureza (vai dentro do APK) e
-deve ser restringida ao pacote `com.safecircle.app` e à assinatura SHA-1 da
-keystore gerenciada pelo EAS. Quando o proprietário criar a chave no Google
-Cloud, basta adicionar em `apps/mobile/app.json`:
+foi restringida pelo proprietário ao pacote `com.safecircle.app`, à assinatura
+SHA-1 da keystore gerenciada pelo EAS e à API Maps SDK for Android (uso desse
+SDK não é cobrado; alerta de orçamento recomendado). Ela vive em
+`apps/mobile/app.json`, inserida pelo proprietário em 2026-09-16:
 
 ```json
 {
@@ -24,8 +25,8 @@ Cloud, basta adicionar em `apps/mobile/app.json`:
 }
 ```
 
-e gerar nova build. Sem a chave o app funciona sem mapa embutido, em vez de
-fechar. No iOS o MapKit não exige chave.
+Sem a chave (ou com ela vazia) o app funciona sem mapa embutido, em vez de
+fechar; com ela, o mapa volta. No iOS o MapKit não exige chave.
 
 ## Testes adicionados
 
