@@ -167,6 +167,26 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // handler. Rotas nunca recebem corpo que não pediram.
   app.removeContentTypeParser("text/plain");
 
+  // `Content-Type: application/json` com corpo vazio vale como "sem corpo":
+  // clientes `fetch` nativos mandam o header em todo POST, inclusive em ações
+  // sem payload (resolver/cancelar alerta, iniciar localização ao vivo). O
+  // parser padrão do Fastify respondia 400 e o app mostrava "dados inválidos".
+  // JSON malformado ou com `__proto__`/`constructor` continua sendo recusado
+  // pelo parser padrão (secure-json-parse), que segue sendo usado para o resto.
+  const defaultJsonParser = app.getDefaultJsonParser("error", "error");
+  app.removeContentTypeParser("application/json");
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string", bodyLimit: BODY_LIMIT_BYTES },
+    (request, body, done) => {
+      if (typeof body !== "string" || body.trim() === "") {
+        done(null, undefined);
+        return;
+      }
+      defaultJsonParser(request, body, done);
+    },
+  );
+
   await app.register(errorHandlerPlugin);
   await app.register(observabilityPlugin, {});
   await app.register(httpHardeningPlugin, { hstsEnabled: config.hstsEnabled });

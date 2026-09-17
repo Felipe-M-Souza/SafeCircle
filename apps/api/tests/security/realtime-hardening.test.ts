@@ -110,6 +110,30 @@ describe("Origin no handshake", () => {
     await waitUntil(() => strict.realtimeHub.connectionCount(user.userId) === 2);
   });
 
+  it("Origin igual à própria origem da API (WebSocket do React Native) conecta em modo estrito", async () => {
+    // O WebSocket do React Native (Android/iOS) envia Origin = https://<host da API>.
+    const selfOrigin = strictWsUrl.replace(/^ws/, "http");
+    const native = await connectRealtime(strictWsUrl, user.accessToken, "/realtime", {
+      Origin: selfOrigin,
+    });
+    openClients.push(native);
+    await waitUntil(() => strict.realtimeHub.connectionCount(user.userId) === 1);
+
+    // Same-origin é exato: outro host/porta com o mesmo prefixo continua 403.
+    await expectHandshakeStatus(
+      connectRealtime(strictWsUrl, user.accessToken, "/realtime", {
+        Origin: selfOrigin.replace(/:(\d+)$/, (_m, port) => `:${Number(port) + 1}`),
+      }),
+      403,
+    );
+    await expectHandshakeStatus(
+      connectRealtime(strictWsUrl, user.accessToken, "/realtime", {
+        Origin: selfOrigin + ".evil.example",
+      }),
+      403,
+    );
+  });
+
   it("origem permitida não substitui autenticação", async () => {
     await expectHandshakeStatus(
       connectRealtime(strictWsUrl, undefined, "/realtime", {
