@@ -27,17 +27,28 @@ esquecido. Com o Pages, atualizar o texto é abrir um pull request.
 
 ### 1. Criar o projeto no Cloudflare
 
-1. Acesse o painel do Cloudflare e vá em **Workers & Pages**, **Create**,
-   aba **Pages**, opção **Connect to Git**.
-2. Autorize o acesso ao repositório `Felipe-M-Souza/SafeCircle`.
-3. Configure assim:
+Contas criadas a partir de 2026 **não oferecem mais o fluxo clássico do Pages**:
+o painel unificou tudo em Workers. Por isso o repositório tem `wrangler.jsonc`
+na raiz, declarando `apps/web` como diretório de arquivos estáticos. É um
+Worker "só de assets": nenhum código roda por requisição, a Cloudflare apenas
+serve os arquivos a partir da borda.
 
-| Campo                  | Valor           |
-| ---------------------- | --------------- |
-| Production branch      | `main`          |
-| Framework preset       | None            |
-| Build command          | deixe **vazio** |
-| Build output directory | `apps/web`      |
+1. No painel, vá em **Workers & Pages**, botão **Create application**, e escolha
+   importar de um repositório Git.
+2. Autorize o acesso a `Felipe-M-Souza/SafeCircle`.
+3. Preencha assim:
+
+| Campo                 | Valor                 |
+| --------------------- | --------------------- |
+| Project name          | `safecircle-site`     |
+| Build command         | deixe **vazio**       |
+| Deploy command        | `npx wrangler deploy` |
+| Path                  | `/`                   |
+| Variáveis de ambiente | **nenhuma**           |
+
+O nome do projeto precisa bater com o `name` do `wrangler.jsonc`. O token de
+API é criado pela própria Cloudflare no assistente; não é preciso gerar nada à
+mão, e ele não vai para o repositório.
 
 Não há etapa de build: o site é estático e é publicado como está.
 
@@ -66,6 +77,15 @@ nslookup -type=MX softechconsulting.com.br 8.8.8.8
 
 Os dois primeiros devem continuar respondendo, e o terceiro deve continuar
 apontando para `titan.email`. Se algum falhar, um registro foi sobrescrito.
+
+### 4. Confirmar os cabeçalhos de segurança
+
+O `apps/web/_headers` é lido pela mesma infraestrutura de assets do Workers,
+então a CSP e os demais cabeçalhos continuam valendo. Depois do deploy:
+
+```bash
+curl -sI https://safecircle.softechconsulting.com.br | grep -i "content-security-policy\|x-frame-options\|strict-transport"
+```
 
 ## Depois de publicar
 
