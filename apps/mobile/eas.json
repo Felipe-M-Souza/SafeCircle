@@ -24,6 +24,15 @@
       },
       "android": { "buildType": "apk" }
     },
+    "preview-apk": {
+      "distribution": "internal",
+      "channel": "preview",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "preview"
+      },
+      "android": { "buildType": "apk" }
+    },
     "production": {
       "distribution": "store",
       "channel": "production",
