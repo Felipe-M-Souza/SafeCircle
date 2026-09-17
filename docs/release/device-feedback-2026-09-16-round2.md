@@ -1,0 +1,51 @@
+# Achados em aparelho — 2026-09-16, rodada 2 (APK 4d1e4197)
+
+Segunda rodada do proprietário num Android físico, já com as correções da
+rodada 1 (PR #23). Dois relatos; ambos reproduzidos por evidência e corrigidos
+com testes que falham sem a correção.
+
+| #   | Relato                                                                                                  | Evidência                                                                                                                                                         | Causa raiz                                                                                                                                                                                                                              | Correção                                                                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A barra de navegação do sistema (inferior) cobre o conteúdo, por exemplo o botão "CHEGUEI EM SEGURANÇA" | Captura de tela da home                                                                                                                                           | Android edge-to-edge (RN 0.86 / SDK 57): o conteúdo desenha atrás das barras do sistema e o app não aplicava insets de área segura em nenhuma tela                                                                                      | `SafeAreaProvider` + `SafeAreaView` (`react-native-safe-area-context`) na raiz do app, com fundo da marca; o header de `Screen` deixa de reservar 56 px fixos para a status bar                                                         |
+| 2   | "Quando ativo a localização, o app está bugando e fechando"                                             | Logs da API: `POST .../live-location/start` → 201 às 19:23:02 e 19:23:47, `history` → 200, e **nenhum** ponto enviado depois: o processo morreu logo após iniciar | `react-native-maps` no Android exige chave do Google Maps (`android.config.googleMaps.apiKey`); sem ela o Maps SDK lança `RuntimeException: API key not found` ao inflar o `MapView`, que é montado assim que existe a primeira posição | `isNativeMapAvailable()` decide antes de montar: no Android sem chave, o mapa dá lugar a um cartão que informa a limitação e abre a posição no app de mapas do sistema (`geo:`); a localização continua sendo compartilhada normalmente |
+
+## Sobre o mapa
+
+A chave do Maps SDK for Android é pública por natureza (vai dentro do APK) e
+foi restringida pelo proprietário ao pacote `com.safecircle.app`, à assinatura
+SHA-1 da keystore gerenciada pelo EAS e à API Maps SDK for Android (uso desse
+SDK não é cobrado; alerta de orçamento recomendado). Ela vive em
+`apps/mobile/app.json`, inserida pelo proprietário em 2026-09-16:
+
+```json
+{
+  "expo": {
+    "android": { "config": { "googleMaps": { "apiKey": "<chave restrita>" } } }
+  }
+}
+```
+
+Sem a chave (ou com ela vazia) o app funciona sem mapa embutido, em vez de
+fechar; com ela, o mapa volta. No iOS o MapKit não exige chave.
+
+**Correção da correção (mesma data, build `e7109c69`):** o app não enxerga
+`android.config` em tempo de execução — o Expo remove esse bloco da configuração
+pública — e por isso continuou mostrando o cartão mesmo com a chave no APK. A
+decisão passou a vir do sinalizador público `extra.googleMapsApiKeyConfigured`,
+mantido coerente com a chave por `src/__tests__/app-config.test.ts` (chave
+presente ⇔ `true`).
+
+## Testes adicionados
+
+| Teste                                                                      | O que prova                                                                                                                                                                |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/mobile/src/lib/__tests__/maps.test.ts` (4)                           | Android sem chave (ausente, vazia, config nula) → indisponível; com chave → disponível; iOS sempre; web nunca; URL `geo:`/`maps:` com 6 casas                              |
+| `apps/mobile/src/components/__tests__/LiveLocationMap.native.test.tsx` (3) | sem mapa: cartão de fallback, nenhum componente do `react-native-maps` montado, botão abre o app de mapas; com mapa: `MapView` e marcador; sem primeiro ponto: placeholder |
+
+Rolagem/insets: o mock de `react-native-safe-area-context` no Jest devolve
+insets zero; a prova real é em aparelho (o corte era visual). A alteração é
+estrutural e única (raiz do app), não por tela.
+
+## Não reproduzido nesta rodada
+
+Nada mais foi relatado. Ícone, splash e logo (PR #24) entram na próxima build.

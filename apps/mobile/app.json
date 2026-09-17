@@ -37,6 +37,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#014D91"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCI9wx5iuJgOQN40n3iX2p-dZKXDtxBLLQ"
+        }
       }
     },
     "web": {
@@ -82,7 +87,8 @@
     "extra": {
       "eas": {
         "projectId": "d61985af-730f-4bb3-91ba-92c22abd57e4"
-      }
+      },
+      "googleMapsApiKeyConfigured": true
     },
     "owner": "felipe_melo_souza"
   }

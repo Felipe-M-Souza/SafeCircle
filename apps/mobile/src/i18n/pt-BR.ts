@@ -285,6 +285,9 @@ export const ptBR = {
     waitingFirstPoint: "Localização ainda não disponível.",
     center: "CENTRALIZAR",
     mapUnavailable: "Mapa indisponível nesta plataforma.",
+    mapNotConfigured:
+      "O mapa não está disponível nesta versão do app. A posição continua sendo compartilhada com o grupo.",
+    openInMaps: "ABRIR NO APP DE MAPAS",
     foregroundOnlyNote:
       "A localização ao vivo é atualizada enquanto o SafeCircle está aberto. Em segundo plano ou com a tela bloqueada, a posição não é atualizada.",
   },

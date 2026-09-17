@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import MapView, { Circle, Marker, Polyline, type Region } from "react-native-maps";
 import { strings } from "../i18n/pt-BR";
 import type { LiveLocationPoint } from "../lib/api";
+import { externalMapUrl, isNativeMapAvailable } from "../lib/maps";
 import { colors } from "../theme/colors";
 
 interface LiveLocationMapProps {
@@ -27,6 +28,10 @@ function regionFor(point: LiveLocationPoint): Region {
  * trilha recente limitada. Centraliza no primeiro ponto; depois só recentra
  * quando o usuário toca em CENTRALIZAR (não força reposicionamento enquanto
  * ele explora). Sem geocoding reverso, POIs ou dados externos.
+ *
+ * No Android sem chave do Google Maps o MapView derruba o app (achado em
+ * aparelho, 2026-09-16); nesse caso mostra um cartão com a opção de abrir a
+ * posição no app de mapas do sistema, sem montar o MapView.
  */
 export function LiveLocationMap({ latest, trail, stale }: LiveLocationMapProps): React.JSX.Element {
   const mapRef = useRef<MapView | null>(null);
@@ -45,6 +50,23 @@ export function LiveLocationMap({ latest, trail, stale }: LiveLocationMapProps):
     return (
       <View style={styles.placeholder} testID="live-location-map-empty">
         <Text style={styles.placeholderText}>{strings.liveLocation.waitingFirstPoint}</Text>
+      </View>
+    );
+  }
+
+  if (!isNativeMapAvailable()) {
+    const url = externalMapUrl(latest.latitude, latest.longitude);
+    return (
+      <View style={styles.placeholder} testID="live-location-map-unavailable">
+        <Text style={styles.placeholderText}>{strings.liveLocation.mapNotConfigured}</Text>
+        <Pressable
+          style={styles.openButton}
+          onPress={() => void Linking.openURL(url)}
+          accessibilityRole="button"
+          testID="live-location-open-maps"
+        >
+          <Text style={styles.centerText}>{strings.liveLocation.openInMaps}</Text>
+        </Pressable>
       </View>
     );
   }
@@ -112,6 +134,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   placeholderText: { color: colors.mutedText, fontSize: 14, textAlign: "center" },
+  openButton: {
+    marginTop: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   centerButton: {
     position: "absolute",
     right: 12,

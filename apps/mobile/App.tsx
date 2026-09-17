@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet } from "react-native";
+import { colors } from "./src/theme/colors";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import type { ApiClient } from "./src/lib/api";
@@ -54,15 +57,24 @@ export default function App(): React.JSX.Element {
   // mensagem segura, com código de suporte, em vez de tela branca (Phase 9).
   return (
     <ErrorBoundary>
-      <AuthProvider beforeSignOut={beforeSignOut}>
-        <NotificationsProvider>
-          <RealtimeProvider>
-            <LiveLocationLifecycle />
-            <StatusBar style="light" />
-            <Root />
-          </RealtimeProvider>
-        </NotificationsProvider>
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider beforeSignOut={beforeSignOut}>
+          <NotificationsProvider>
+            <RealtimeProvider>
+              <LiveLocationLifecycle />
+              <StatusBar style="light" />
+              {/* Android edge-to-edge: status bar e barra de navegação não cobrem o conteúdo. */}
+              <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+                <Root />
+              </SafeAreaView>
+            </RealtimeProvider>
+          </NotificationsProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
+});
