@@ -3,6 +3,7 @@
     "name": "SafeCircle",
     "slug": "safecircle",
     "version": "0.1.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "safecircle",
@@ -32,8 +33,11 @@
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT"
       ],
-      "usesCleartextTraffic": false,
       "allowBackup": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#014D91"
+      },
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCI9wx5iuJgOQN40n3iX2p-dZKXDtxBLLQ"
@@ -41,7 +45,8 @@
       }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-status-bar",
@@ -60,10 +65,31 @@
           "color": "#F87171",
           "defaultChannel": "emergency"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
       ]
     ],
     "extra": {
+      "eas": {
+        "projectId": "d61985af-730f-4bb3-91ba-92c22abd57e4"
+      },
       "googleMapsApiKeyConfigured": true
-    }
+    },
+    "owner": "felipe_melo_souza"
   }
 }

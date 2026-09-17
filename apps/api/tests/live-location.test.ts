@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { createTestApp } from "./helpers/app.js";
+import { errorBodyWithoutRequestId } from "./helpers/errors.js";
 import { drainOutbox } from "./helpers/outbox.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { authHeaders, registerUser, type TestUser } from "./helpers/auth.js";
@@ -241,8 +242,9 @@ describe("Localização ao vivo", () => {
         const res = await send(creator, alertId, syntheticPoint(0, override));
         expect(res.statusCode).toBe(400);
         expect(res.json().code).toBe("VALIDATION_ERROR");
-        // Nenhuma coordenada ecoada na resposta de erro.
-        expect(res.payload).not.toContain("-23");
+        // Nenhuma coordenada ecoada na resposta de erro. O `requestId` é um UUID
+        // aleatório que pode conter "-23" por acaso: compara-se o corpo sem ele.
+        expect(JSON.stringify(errorBodyWithoutRequestId(res))).not.toContain("-23");
       }
       expect(await countPoints(alertId)).toBe(0);
     });

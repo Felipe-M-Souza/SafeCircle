@@ -109,9 +109,14 @@ async function parse<T>(response: Response): Promise<T> {
 async function doFetch<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response;
   try {
+    // Content-Type só quando existe corpo: POST sem payload (resolver/cancelar
+    // alerta, iniciar localização) não pode anunciar um JSON que não envia.
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+      headers: {
+        ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(init.headers ?? {}),
+      },
     });
   } catch {
     throw new ApiError("NETWORK", "Não foi possível conectar ao servidor.", 0);

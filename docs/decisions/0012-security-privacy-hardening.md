@@ -147,6 +147,18 @@ usa Bearer, não há cookies nem `credentials`. Requisição **sem** `Origin`
 para o handshake do `/realtime`: origem fora da lista → 403 antes de autenticar.
 Origem permitida **não** substitui autenticação.
 
+**Atualização 2026-09-16 (achado em aparelho).** A premissa "app nativo não
+envia `Origin`" vale para o `fetch`, mas **não** para o WebSocket do React
+Native: Android (OkHttp) e iOS enviam `Origin` igual à origem da própria API
+(`https://<host>`, derivado da URL `wss://`). Em produção, com lista vazia, o
+handshake era recusado com 403 e o app nunca recebia eventos em tempo real. A
+regra passou a aceitar **same-origin** — `Origin` idêntico a
+`protocol://host` da requisição (já considerando `X-Forwarded-*` com
+`TRUST_PROXY`) — em qualquer modo. Não é um afrouxamento: um site de terceiros
+nunca consegue apresentar a origem da API como sua. Origens parecidas (outra
+porta, sufixo de host) continuam 403; testado em
+`tests/security/realtime-hardening.test.ts`.
+
 ### 13. Cabeçalhos de segurança de uma API, não de uma SPA
 
 `@fastify/helmet` com CSP mínima (`default-src 'none'; frame-ancestors
@@ -160,6 +172,18 @@ depende do TLS terminar no ingress — documentado.
 genérico). O parser padrão de `text/plain` foi removido: qualquer
 `Content-Type` que não seja JSON → **415 `UNSUPPORTED_MEDIA_TYPE`**. Dois
 códigos novos, aditivos; o app os traduz.
+
+**Atualização 2026-09-16 (achado em aparelho).** O `fetch` do app enviava
+`Content-Type: application/json` em todo POST, inclusive sem corpo (resolver
+e cancelar alerta, iniciar localização ao vivo de alerta e trajeto). O parser
+padrão do Fastify recusa "JSON vazio" com 400 e o app mostrava "Dados
+inválidos" — os testes de integração não viam isso porque `inject` sem
+payload não envia o header. Dois ajustes: a API trata corpo vazio com esse
+header como **sem corpo** (rotas com schema de body continuam devolvendo 400 de
+validação; JSON malformado ou com `__proto__` continua recusado pelo parser
+seguro padrão, e o `bodyLimit` segue valendo), e o cliente do app só envia o
+header quando há corpo. Testes: `tests/device-client-compat.test.ts`, E2E
+`sos.e2e.ts` e `apps/mobile/src/lib/__tests__/api-headers.test.ts`.
 
 ### 15. WebSocket endurecido
 

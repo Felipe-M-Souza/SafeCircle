@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp } from "./helpers/app.js";
 import { createCleaner } from "./helpers/test-db.js";
 import { registerUser } from "./helpers/auth.js";
@@ -12,6 +12,9 @@ import { REALTIME_CLOSE_CODES } from "../src/infrastructure/realtime/realtime-hu
  */
 const cleaner = createCleaner();
 
+beforeEach(async () => {
+  await cleaner.truncate();
+});
 afterAll(async () => {
   await cleaner.close();
 });

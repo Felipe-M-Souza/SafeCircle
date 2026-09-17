@@ -261,9 +261,42 @@ só fora de produção), `RATE_LIMIT_PROFILE` e `SCHEDULER_POLL_INTERVAL_MS`
 `EXPO_PUBLIC_APP_ENV` (development | preview | production) e
 `EXPO_PUBLIC_GIT_SHA` são públicos e aparecem no rodapé da home.
 
+### API de preview no Railway
+
+A API roda no Railway (projeto `SafeCircle`, serviços `api` e `Postgres`)
+em https://api-production-9e007.up.railway.app, a partir de
+`apps/api/Dockerfile` e `railway.json`. O container aplica as migrations e
+sobe a API; segredos ficam só nas variáveis do serviço (o `JWT_ACCESS_SECRET`
+foi gerado pelo próprio Railway). Deploys são manuais, a partir da raiz:
+
+```bash
+railway whoami
+railway up --service api --detach
+railway logs --service api --deployment
+```
+
+É um ambiente de preview com dados sintéticos, sem backup agendado nem SLA.
+Detalhes, variáveis e limitações em `docs/release/railway-api-preview.md`.
+### Marca: ícone, splash e logo
+
+As fontes ficam em `apps/mobile/assets/brand/` (ícone 1254×1254 e logo com
+transparência, entregues pelo proprietário). Os recursos usados pelo app são
+gerados e commitados por:
+
+```bash
+pnpm brand:assets
+```
+
+O script (`scripts/brand-assets.mjs`, `sharp`) produz `icon.png`,
+`adaptive-icon.png` (arte a 72% para a zona segura do Android, fundo
+`#014D91`), `splash-icon.png`, `logo.png` e `favicon.png`, e registra medidas
+e cores em `assets/brand/generated.json`. Nas telas o logo entra pelo
+componente `BrandLogo`, que mantém o rótulo acessível "SafeCircle". Qualquer
+mudança de ícone, splash ou logo exige nova build EAS.
+
 Limitações conhecidas desta fase: nenhuma validação em aparelho físico foi
 executada (push real, permissões, GPS, foreground/background, offline no app,
-deep links) e nenhum binário EAS foi gerado — ambos exigem aparelho e
+deep links) e nenhum binário EAS foi gerado na fase — ambos exigem aparelho e
 credenciais do proprietário e estão marcados `NOT EXECUTED` em
 `docs/release/test-report.md`. A localização ao vivo continua só em primeiro
 plano por decisão explícita. Não há tag de release nem publicação nas lojas.
@@ -274,6 +307,27 @@ Token em builds EAS, configure o `projectId` público em `apps/mobile/app.json`
 (`expo.extra.eas.projectId`); credenciais FCM/APNs ficam na conta Expo/EAS,
 nunca neste repositório. No backend, `EXPO_ACCESS_TOKEN` (opcional, segredo)
 autentica o envio na Expo Push API. Ver ADR 0005.
+
+### APK de Preview via Expo/EAS
+
+O app está vinculado ao projeto EAS `@felipe_melo_souza/safecircle`
+(`owner` e `extra.eas.projectId` em `apps/mobile/app.json`; identificadores
+públicos). O profile `preview-apk` de `apps/mobile/eas.json` gera um APK
+instalável (distribuição interna, sem loja) e lê `EXPO_PUBLIC_API_URL` das
+variáveis de ambiente EAS do ambiente `preview`, para nunca commitar um
+endpoint de teste. Comandos seguros, sempre a partir de `apps/mobile`:
+
+```bash
+pnpm dlx eas-cli@latest whoami                                      # sessão atual
+pnpm dlx eas-cli@latest config --platform android --profile preview-apk
+pnpm dlx eas-cli@latest build --platform android --profile preview-apk
+```
+
+Sem uma URL de API definida no EAS o APK aponta para `http://localhost:3000` e
+não tem fluxo ponta a ponta funcional. Nunca use `eas submit` nem o profile
+`production` para preview; nunca versione `EXPO_TOKEN`, keystore ou `.env`.
+Detalhes, limitações e instalação manual em
+`docs/release/expo-eas-apk-preview.md`.
 
 ## 1. Visão geral
 

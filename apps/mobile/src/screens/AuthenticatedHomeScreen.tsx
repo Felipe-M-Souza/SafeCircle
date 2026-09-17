@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BrandLogo } from "../components/BrandLogo";
 import { useAuth } from "../auth/AuthContext";
 import { CheckinsHomeSection } from "../components/CheckinsHomeSection";
 import { JourneysHomeSection } from "../components/JourneysHomeSection";
@@ -223,9 +224,14 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      testID="home-scroll"
+    >
       <View style={styles.card}>
-        <Text style={styles.brand}>{strings.common.appName}</Text>
+        <BrandLogo />
         <Text style={styles.greeting}>{t.greeting(user?.name ?? "")}</Text>
 
         {renderSosArea()}
@@ -295,16 +301,17 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
           {buildInfoLabel()}
         </Text>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  // flexGrow (não flex) no conteúdo: centraliza quando cabe e rola quando não cabe.
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background,
     padding: 24,
   },
   card: {
@@ -317,7 +324,6 @@ const styles = StyleSheet.create({
     padding: 28,
     gap: 14,
   },
-  brand: { color: colors.primaryText, fontSize: 26, fontWeight: "800" },
   greeting: { color: colors.primaryText, fontSize: 22, fontWeight: "700" },
   sectionLabel: { color: colors.mutedText, fontSize: 13, fontWeight: "700", marginTop: 4 },
   groupRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
