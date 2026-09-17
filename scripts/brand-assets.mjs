@@ -157,6 +157,38 @@ async function main() {
     .png({ compressionLevel: 9 })
     .toFile(resolve(outDir, "logo.png"));
 
+  // Variante para fundo escuro: no logotipo original a palavra "Safe" é azul-
+  // marinho e desaparece contra o fundo do app e do site. Só o texto é
+  // reclareado — a marca (o pino, à esquerda) fica intacta, porque ela já tem
+  // contraste próprio e mexer nela descaracterizaria o desenho.
+  //
+  // O limiar vem do histograma de luminância do próprio logotipo: "Safe" ocupa
+  // a faixa 40–60, "Circle" começa em 100, e entre as duas há um vazio. Cortar
+  // em 80 separa as palavras sem corroer as bordas da segunda — foi o que
+  // aconteceu com um limiar alto na primeira tentativa.
+  const wordmarkStartsAt = 0.3;
+  const DARK_TEXT_MAX_LUMINANCE = 80;
+  const dark = await sharp(trimmed).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: dw, height: dh } = dark.info;
+  const firstTextColumn = Math.floor(dw * wordmarkStartsAt);
+  for (let y = 0; y < dh; y += 1) {
+    for (let x = firstTextColumn; x < dw; x += 1) {
+      const i = (y * dw + x) * 4;
+      const [r, g, b, a] = [dark.data[i], dark.data[i + 1], dark.data[i + 2], dark.data[i + 3]];
+      if (a === 0) continue;
+      // Luminância percebida; só o que é escuro vira claro.
+      if (0.2126 * r + 0.7152 * g + 0.0722 * b < DARK_TEXT_MAX_LUMINANCE) {
+        dark.data[i] = 0xf8;
+        dark.data[i + 1] = 0xfa;
+        dark.data[i + 2] = 0xfc;
+      }
+    }
+  }
+  await sharp(dark.data, { raw: { width: dw, height: dh, channels: 4 } })
+    .resize({ width: 720 })
+    .png({ compressionLevel: 9 })
+    .toFile(resolve(outDir, "logo-dark.png"));
+
   const summary = {
     sourceWhiteMarginPx: icon.margin,
     iconCornerRadiusPx: Math.round(icon.radius),
@@ -167,7 +199,14 @@ async function main() {
       height: meta.height,
       aspect: +(meta.width / meta.height).toFixed(4),
     },
-    outputs: ["icon.png", "adaptive-icon.png", "splash-icon.png", "logo.png", "favicon.png"],
+    outputs: [
+      "icon.png",
+      "adaptive-icon.png",
+      "splash-icon.png",
+      "logo.png",
+      "logo-dark.png",
+      "favicon.png",
+    ],
   };
   // Formatado com o Prettier do repositório: `pnpm format:check` cobre este arquivo.
   const generatedPath = resolve(brandDir, "generated.json");

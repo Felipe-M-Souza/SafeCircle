@@ -1,0 +1,13 @@
+# Cabeçalhos aplicados pelo Cloudflare Pages.
+#
+# O site não tem JavaScript nenhum e não carrega nada de terceiros, então a
+# política pode ser a mais restritiva possível: só imagens e folhas de estilo
+# do próprio domínio. Se um dia entrar um script, esta linha precisa mudar de
+# propósito — e é bom que precise.
+/*
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

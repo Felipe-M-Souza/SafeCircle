@@ -376,6 +376,27 @@ com o indicador azul visível, sob a permissão "Ao usar o app".
 O compartilhamento só começa com uma ação da pessoa e com o app aberto; fechar o
 app encerra. Decisões e limites em `docs/decisions/0015-background-location.md`.
 
+### Site institucional e páginas legais
+
+`apps/web` é o site em `safecircle.softechconsulting.com.br`: página inicial,
+política de privacidade, termos de uso e suporte. HTML e CSS escritos à mão, sem
+framework, **sem JavaScript** e sem nenhuma requisição a terceiros — coerente com
+um app que promete não rastrear ninguém, e o que permite a CSP mais restritiva
+possível.
+
+```bash
+pnpm site:dev   # revisar em http://localhost:4321
+```
+
+A política de privacidade não é texto genérico: ela reflete o que o código faz,
+a partir de `docs/privacy/data-inventory.md` e dos ADRs. Quando o comportamento
+muda, ela muda no mesmo pull request. Publicação no Cloudflare Pages, descrita
+em `docs/release/site-institucional.md`.
+
+**Antes de publicar nas lojas:** as páginas legais têm trechos marcados como
+`[preencher]` que dependem de decisão jurídica (razão social, base legal, idade
+mínima, foro). Cada página mostra um aviso de rascunho enquanto isso durar.
+
 ## 1. Visão geral
 
 O **SafeCircle** é um aplicativo mobile de segurança pessoal criado para permitir que uma pessoa peça ajuda rapidamente a uma rede privada de pessoas de confiança quando se sentir em risco ou precisar de auxílio.
