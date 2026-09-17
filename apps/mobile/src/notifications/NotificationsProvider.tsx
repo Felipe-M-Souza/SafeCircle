@@ -16,6 +16,7 @@ import {
 import {
   openAlertFromNotification,
   openCheckinFromNotification,
+  openInvitationsFromNotification,
   openJourneyFromNotification,
 } from "./pending-alert";
 
@@ -27,6 +28,10 @@ function routeNotification(data: NotificationData): void {
   }
   if (data.type === "SAFE_JOURNEY_OVERDUE") {
     openJourneyFromNotification(data.journeyId);
+    return;
+  }
+  if (data.type === "GROUP_INVITATION") {
+    openInvitationsFromNotification(data.invitationId);
     return;
   }
   openAlertFromNotification(data.alertId);

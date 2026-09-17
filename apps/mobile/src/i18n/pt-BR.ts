@@ -382,7 +382,9 @@ export const ptBR = {
     emailLabel: "E-mail",
     submit: "Enviar convite",
     submitting: "Enviando...",
-    success: "Convite criado com sucesso.",
+    success:
+      "Convite enviado. A pessoa será avisada por e-mail e, se já usar o SafeCircle, por notificação.",
+    note: "A pessoa precisa criar a conta com este mesmo e-mail para aceitar o convite.",
   },
   invitations: {
     title: "Convites",

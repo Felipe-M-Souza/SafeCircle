@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Database } from "../infrastructure/database/client.js";
 import type { OutboxEvent } from "../infrastructure/database/schema.js";
 import type { PushProvider } from "../infrastructure/push/push-provider.js";
+import type { EmailProvider } from "../infrastructure/email/email-provider.js";
 import type { RealtimePublisher } from "../infrastructure/realtime/realtime-publisher.js";
 import {
   outboxBacklog,
@@ -53,7 +54,10 @@ const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
 export interface OutboxWorkerOptions {
   db: Database;
   pushProvider: PushProvider;
+  emailProvider: EmailProvider;
   realtime: RealtimePublisher;
+  /** Deep link público do app, usado nos e-mails (Phase 13). */
+  appDeepLink: string;
   log: FastifyBaseLogger;
   pollIntervalMs?: number;
   batchSize?: number;
@@ -218,8 +222,10 @@ export class OutboxWorker {
         {
           db: this.options.db,
           pushProvider: this.options.pushProvider,
+          emailProvider: this.options.emailProvider,
           realtime: this.options.realtime,
           log: this.options.log,
+          appDeepLink: this.options.appDeepLink,
         },
         event,
       );

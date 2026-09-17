@@ -6,7 +6,11 @@ import {
   trustedGroups,
   users,
 } from "../../infrastructure/database/schema.js";
-import { enqueueRealtime, type DomainActionOptions } from "../../outbox/effects.js";
+import {
+  enqueueInvitationCreatedEffects,
+  enqueueRealtime,
+  type DomainActionOptions,
+} from "../../outbox/effects.js";
 import { errors } from "../../shared/errors.js";
 import { requireGroupRole } from "./authorization.js";
 
@@ -58,6 +62,7 @@ export async function createInvitation(
   actorUserId: string,
   groupId: string,
   email: string,
+  options: DomainActionOptions = {},
 ): Promise<GroupInvitationView> {
   await requireGroupRole(db, groupId, actorUserId, ["OWNER", "ADMIN"]);
 
@@ -109,32 +114,42 @@ export async function createInvitation(
   }
 
   try {
-    const [created] = await db
-      .insert(groupInvitations)
-      .values({
+    // Phase 13: o convite e o aviso (push + e-mail) no MESMO COMMIT. Sem isso,
+    // um crash entre os dois deixaria um convite que ninguém fica sabendo.
+    return await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(groupInvitations)
+        .values({
+          groupId,
+          invitedByUserId: actorUserId,
+          invitedEmail: email,
+          status: "PENDING",
+          expiresAt: invitationExpiry(),
+        })
+        .returning({
+          id: groupInvitations.id,
+          invitedEmail: groupInvitations.invitedEmail,
+          status: groupInvitations.status,
+          expiresAt: groupInvitations.expiresAt,
+          createdAt: groupInvitations.createdAt,
+        });
+      if (!created) {
+        throw new Error("Falha ao criar convite.");
+      }
+      await enqueueInvitationCreatedEffects(tx, {
+        invitationId: created.id,
         groupId,
-        invitedByUserId: actorUserId,
-        invitedEmail: email,
-        status: "PENDING",
-        expiresAt: invitationExpiry(),
-      })
-      .returning({
-        id: groupInvitations.id,
-        invitedEmail: groupInvitations.invitedEmail,
-        status: groupInvitations.status,
-        expiresAt: groupInvitations.expiresAt,
-        createdAt: groupInvitations.createdAt,
+        actorUserId,
+        requestId: options.requestId ?? null,
       });
-    if (!created) {
-      throw new Error("Falha ao criar convite.");
-    }
-    return {
-      id: created.id,
-      invitedEmail: created.invitedEmail,
-      status: created.status,
-      expiresAt: created.expiresAt.toISOString(),
-      createdAt: created.createdAt.toISOString(),
-    };
+      return {
+        id: created.id,
+        invitedEmail: created.invitedEmail,
+        status: created.status,
+        expiresAt: created.expiresAt.toISOString(),
+        createdAt: created.createdAt.toISOString(),
+      };
+    });
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw errors.invitationAlreadyPending();

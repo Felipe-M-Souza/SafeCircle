@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { Screen } from "../../components/Screen";
@@ -58,6 +58,7 @@ export function InviteScreen({
       />
       {message ? <Text style={{ color: colors.accent }}>{message}</Text> : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
+      <Text style={styles.note}>{t.note}</Text>
       <PrimaryButton
         label={submitting ? t.submitting : t.submit}
         onPress={handleSubmit}
@@ -66,3 +67,7 @@ export function InviteScreen({
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  note: { color: colors.mutedText, fontSize: 13, lineHeight: 18 },
+});

@@ -190,7 +190,9 @@ describe("Outbox e auditoria não guardam dado sensível", () => {
     const rows = await cleaner.sql<{ event_type: string; payload: unknown }[]>`
       SELECT event_type, payload FROM outbox_events
     `;
-    const families = { PUSH_: 0, REALTIME_: 0, AUDIT_: 0 };
+    // EMAIL_ entrou na Phase 13: o convite gera evento de e-mail, e o payload
+    // continua sendo só id — o endereço é carregado na entrega.
+    const families = { PUSH_: 0, EMAIL_: 0, REALTIME_: 0, AUDIT_: 0 };
     for (const row of rows) {
       const family = (Object.keys(families) as Array<keyof typeof families>).find((prefix) =>
         row.event_type.startsWith(prefix),
@@ -217,6 +219,7 @@ describe("Outbox e auditoria não guardam dado sensível", () => {
     }
     // A verificação só vale se cada família realmente foi exercitada.
     expect(families.PUSH_).toBeGreaterThan(0);
+    expect(families.EMAIL_).toBeGreaterThan(0);
     expect(families.REALTIME_).toBeGreaterThan(0);
     expect(families.AUDIT_).toBeGreaterThan(0);
   });
