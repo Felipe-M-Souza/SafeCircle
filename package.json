@@ -37,6 +37,7 @@
     "e2e:mobile": "pnpm --filter @safecircle/mobile run e2e",
     "smoke:api": "pnpm --filter @safecircle/api run smoke",
     "release:blockers": "node scripts/release-blockers-check.mjs",
+    "site:dev": "node scripts/serve-web.mjs",
     "brand:assets": "node scripts/brand-assets.mjs",
     "release:check": "node scripts/release-check.mjs"
   },
