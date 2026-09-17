@@ -114,6 +114,12 @@ as permissões de background na configuração nativa (`blockedPermissions`, sem
 `isIosBackgroundLocationEnabled`) e declarar nas lojas que não há coleta em
 segundo plano. Reavaliar em fase futura, com aparelhos.
 
+> **Substituída em 2026-09-17 pelo ADR 0015.** Com aparelho disponível e a
+> validação feita, o compartilhamento passou a continuar com a tela bloqueada
+> por meio de um **serviço em primeiro plano** (notificação fixa). A permissão
+> `ACCESS_BACKGROUND_LOCATION` continua bloqueada: o caminho escolhido não
+> precisa dela.
+
 ### 6. Ambientes e configuração
 
 Três ambientes: `development`, `preview`, `production`, espelhados em
