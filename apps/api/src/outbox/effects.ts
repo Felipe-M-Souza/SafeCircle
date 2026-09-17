@@ -295,6 +295,49 @@ export async function enqueueMembershipChangedEffects(
   });
 }
 
+/**
+ * Convite criado (Phase 13): avisa quem foi convidado por push (se já tiver
+ * conta e aparelho) e por e-mail, além da auditoria. Antes disso, o convite só
+ * era descoberto se a pessoa abrisse o app por conta própria.
+ *
+ * O payload leva apenas ids: o endereço de e-mail é carregado na entrega.
+ */
+export async function enqueueInvitationCreatedEffects(
+  tx: Transaction,
+  input: EffectContext & { invitationId: string; groupId: string },
+): Promise<void> {
+  const base = {
+    aggregateType: "GROUP_INVITATION",
+    aggregateId: input.invitationId,
+    groupId: input.groupId,
+  };
+  await enqueue(tx, "PUSH_GROUP_INVITATION_CREATED", {
+    ...base,
+    requestId: input.requestId,
+    payload: {
+      // Quem convidou nunca é destinatário; o handler resolve pelo e-mail.
+      actorUserId: input.actorUserId,
+      groupId: input.groupId,
+      resourceId: input.invitationId,
+    },
+  });
+  await enqueue(tx, "EMAIL_GROUP_INVITATION_CREATED", {
+    ...base,
+    requestId: input.requestId,
+    payload: {
+      invitationId: input.invitationId,
+      groupId: input.groupId,
+    },
+  });
+  await enqueueAudit(tx, "AUDIT_GROUP_INVITATION_CREATED", {
+    ...base,
+    actorUserId: input.actorUserId,
+    targetType: "GROUP_INVITATION",
+    targetId: input.invitationId,
+    requestId: input.requestId,
+  });
+}
+
 // ------------------------------------------------------------------
 // Check-ins
 // ------------------------------------------------------------------

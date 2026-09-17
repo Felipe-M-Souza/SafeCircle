@@ -151,7 +151,9 @@ export async function groupsRoutes(
         errors.groupNotFound,
       );
       const input = createInvitationSchema.parse(request.body);
-      const invitation = await createInvitation(app.db, request.auth.userId, groupId, input.email);
+      const invitation = await createInvitation(app.db, request.auth.userId, groupId, input.email, {
+        requestId: request.id,
+      });
       return reply.status(201).send(invitation);
     },
   );

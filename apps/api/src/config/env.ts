@@ -90,6 +90,22 @@ const envSchema = z
     // Phase 12: `noop` para E2E/staging sem credenciais — recusado em produção.
     PUSH_PROVIDER: z.preprocess(emptyToUndefined, z.enum(["expo", "noop"]).default("expo")),
 
+    // Phase 13 — e-mail transacional (convites). `noop` registra e descarta:
+    // o convite continua visível no app, só não sai aviso por e-mail.
+    EMAIL_PROVIDER: z.preprocess(emptyToUndefined, z.enum(["smtp", "noop"]).default("noop")),
+    SMTP_HOST: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+    SMTP_SECURE: booleanFlag("false"),
+    SMTP_USER: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    /** Remetente: `Nome <endereco>` ou só o endereço. */
+    EMAIL_FROM: z.preprocess(
+      emptyToUndefined,
+      z.string().min(3).default("SafeCircle <nao-responda@safecircle.invalid>"),
+    ),
+    /** Deep link público usado nos e-mails; sem token, sem identificador pessoal. */
+    APP_DEEP_LINK: z.preprocess(emptyToUndefined, z.string().min(3).default("safecircle://")),
+
     // Observabilidade (Phase 9).
     // /metrics é desligado por padrão: só existe quando explicitamente habilitado.
     METRICS_ENABLED: booleanFlag("false"),
@@ -154,6 +170,11 @@ const envSchema = z
       issue("TRUST_PROXY", "Use `true`, `false` ou o número de proxies confiáveis.");
     }
 
+    // SMTP escolhido exige host: melhor falhar no boot que descobrir na entrega.
+    if (value.EMAIL_PROVIDER === "smtp" && !value.SMTP_HOST) {
+      issue("SMTP_HOST", "SMTP_HOST é obrigatório quando EMAIL_PROVIDER=smtp.");
+    }
+
     if (value.NODE_ENV !== "production") return;
 
     // --- Produção: fail-fast ---
@@ -209,6 +230,16 @@ export interface Config {
   expoAccessToken?: string;
   /** `expo` em produção; `noop` só para E2E/staging sem credenciais. */
   pushProvider: "expo" | "noop";
+  emailProvider: "smtp" | "noop";
+  smtp: {
+    host: string | undefined;
+    port: number;
+    secure: boolean;
+    user: string | undefined;
+    password: string | undefined;
+  };
+  emailFrom: string;
+  appDeepLink: string;
   metricsEnabled: boolean;
   metricsToken?: string;
   appVersion?: string;
@@ -267,6 +298,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
         : (env.RATE_LIMIT_PROFILE ?? (env.NODE_ENV === "test" ? "relaxed" : "production")),
     expoAccessToken: env.EXPO_ACCESS_TOKEN,
     pushProvider: env.PUSH_PROVIDER,
+    emailProvider: env.EMAIL_PROVIDER,
+    smtp: {
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
+      user: env.SMTP_USER,
+      password: env.SMTP_PASSWORD,
+    },
+    emailFrom: env.EMAIL_FROM,
+    appDeepLink: env.APP_DEEP_LINK,
     metricsEnabled: env.METRICS_ENABLED,
     metricsToken: env.METRICS_TOKEN,
     appVersion: env.APP_VERSION,

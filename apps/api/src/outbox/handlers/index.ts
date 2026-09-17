@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { Database } from "../../infrastructure/database/client.js";
+import type { EmailProvider } from "../../infrastructure/email/email-provider.js";
 import type { PushProvider } from "../../infrastructure/push/push-provider.js";
 import type { RealtimePublisher } from "../../infrastructure/realtime/realtime-publisher.js";
 import type { OutboxEvent } from "../../infrastructure/database/schema.js";
@@ -8,11 +9,13 @@ import {
   payloadSchemaFor,
   permanent,
   type AuditOutboxEventType,
+  type EmailEventType,
   type HandlerResult,
   type PushEventType,
   type RealtimeEventType,
 } from "../outbox.types.js";
 import { handleAuditEvent } from "./audit.handler.js";
+import { handleEmailEvent } from "./email.handler.js";
 import { handlePushEvent } from "./push.handler.js";
 import { handleRealtimeEvent } from "./realtime.handler.js";
 
@@ -26,8 +29,11 @@ import { handleRealtimeEvent } from "./realtime.handler.js";
 export interface OutboxHandlerContext {
   db: Database;
   pushProvider: PushProvider;
+  emailProvider: EmailProvider;
   realtime: RealtimePublisher;
   log: FastifyBaseLogger;
+  /** Deep link do app usado nos e-mails (Phase 13); público, sem token. */
+  appDeepLink: string;
   /** Id do evento da outbox: correlação, dedupe realtime e idempotência do audit. */
   eventId: string;
 }
@@ -35,8 +41,10 @@ export interface OutboxHandlerContext {
 export interface HandlerDependencies {
   db: Database;
   pushProvider: PushProvider;
+  emailProvider: EmailProvider;
   realtime: RealtimePublisher;
   log: FastifyBaseLogger;
+  appDeepLink: string;
 }
 
 /**
@@ -66,6 +74,13 @@ export async function dispatchOutboxEvent(
       ctx,
       event.eventType as PushEventType,
       parsed.data as Parameters<typeof handlePushEvent>[2],
+    );
+  }
+  if (family === "email") {
+    return handleEmailEvent(
+      ctx,
+      event.eventType as EmailEventType,
+      parsed.data as Parameters<typeof handleEmailEvent>[2],
     );
   }
   if (family === "realtime") {

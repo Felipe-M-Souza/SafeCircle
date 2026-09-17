@@ -10,7 +10,9 @@ import { z } from "zod";
  *
  * Privacidade (ADR 0011): o payload carrega **apenas IDs e flags**. Nunca push
  * token, coordenada, credencial, e-mail, corpo de requisição ou resposta bruta
- * de provedor — a outbox é uma tabela durável, e o que entra nela fica.
+ * de provedor — a outbox é uma tabela durável, e o que entra nela fica. Vale
+ * inclusive para o e-mail de convite (Phase 13): o payload leva o id do convite
+ * e o handler carrega o endereço do banco na hora de entregar.
  */
 
 export const OUTBOX_PAYLOAD_VERSION = 1;
@@ -23,7 +25,11 @@ export const PUSH_EVENT_TYPES = [
   "PUSH_ALERT_CREATED",
   "PUSH_CHECKIN_OVERDUE",
   "PUSH_JOURNEY_OVERDUE",
+  "PUSH_GROUP_INVITATION_CREATED",
 ] as const;
+
+/** E-mail transacional (Phase 13). Hoje só o convite. */
+export const EMAIL_EVENT_TYPES = ["EMAIL_GROUP_INVITATION_CREATED"] as const;
 
 export const REALTIME_EVENT_TYPES = [
   "REALTIME_ALERT_CREATED",
@@ -57,6 +63,7 @@ export const AUDIT_EVENT_TYPES = [
   "AUDIT_ACCOUNT_DELETION_COMPLETED",
   "AUDIT_GROUP_OWNERSHIP_TRANSFERRED",
   "AUDIT_GROUP_CREATED",
+  "AUDIT_GROUP_INVITATION_CREATED",
   "AUDIT_GROUP_MEMBER_REMOVED",
   "AUDIT_GROUP_MEMBER_ROLE_CHANGED",
   "AUDIT_ALERT_CREATED",
@@ -76,24 +83,28 @@ export const AUDIT_EVENT_TYPES = [
 
 export const OUTBOX_EVENT_TYPES = [
   ...PUSH_EVENT_TYPES,
+  ...EMAIL_EVENT_TYPES,
   ...REALTIME_EVENT_TYPES,
   ...AUDIT_EVENT_TYPES,
 ] as const;
 
 export type PushEventType = (typeof PUSH_EVENT_TYPES)[number];
+export type EmailEventType = (typeof EMAIL_EVENT_TYPES)[number];
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
 export type AuditOutboxEventType = (typeof AUDIT_EVENT_TYPES)[number];
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];
 
 /** Família do evento — decide handler, retries e expiração. */
-export type OutboxEventFamily = "push" | "realtime" | "audit";
+export type OutboxEventFamily = "push" | "email" | "realtime" | "audit";
 
 const pushTypes = new Set<string>(PUSH_EVENT_TYPES);
+const emailTypes = new Set<string>(EMAIL_EVENT_TYPES);
 const realtimeTypes = new Set<string>(REALTIME_EVENT_TYPES);
 const auditTypes = new Set<string>(AUDIT_EVENT_TYPES);
 
 export function familyOf(eventType: string): OutboxEventFamily | null {
   if (pushTypes.has(eventType)) return "push";
+  if (emailTypes.has(eventType)) return "email";
   if (realtimeTypes.has(eventType)) return "realtime";
   if (auditTypes.has(eventType)) return "audit";
   return null;
@@ -112,6 +123,9 @@ export function isOutboxEventType(value: string): value is OutboxEventType {
  *
  * - **push**: 8 tentativas e TTL de 20 min. Uma notificação de SOS entregue
  *   uma hora depois é pior que nenhuma — confunde e assusta sem ajudar.
+ * - **email**: 6 tentativas e TTL de 24 h. Um convite não é urgente como um
+ *   SOS, mas chegar tarde ainda serve — e servidor SMTP fora do ar por alguns
+ *   minutos é comum. Depois de 24 h o convite já está perto de expirar.
  * - **realtime**: poucas tentativas e TTL de 5 min. É acelerador de UX; o REST
  *   é a fonte de verdade e o app ressincroniza ao abrir/reconectar.
  * - **audit**: muitas tentativas e **sem expiração**. Perder trilha de
@@ -125,6 +139,7 @@ export interface OutboxPolicy {
 
 export const OUTBOX_POLICIES: Record<OutboxEventFamily, OutboxPolicy> = {
   push: { maxAttempts: 8, ttlMs: 20 * 60 * 1000 },
+  email: { maxAttempts: 6, ttlMs: 24 * 60 * 60 * 1000 },
   realtime: { maxAttempts: 3, ttlMs: 5 * 60 * 1000 },
   audit: { maxAttempts: 12, ttlMs: null },
 };
@@ -142,6 +157,16 @@ export const pushPayloadSchema = versioned.extend({
   actorUserId: uuidField,
   groupId: uuidField,
   resourceId: uuidField,
+});
+
+/**
+ * E-mail: só o id do convite e do grupo. O endereço **não** entra aqui — o
+ * handler lê `group_invitations.invited_email` na entrega, e um convite
+ * revogado nesse intervalo simplesmente não gera e-mail.
+ */
+export const emailPayloadSchema = versioned.extend({
+  invitationId: uuidField,
+  groupId: uuidField,
 });
 
 /** Realtime: IDs do envelope da Phase 5. Sem coordenadas, sempre. */
@@ -167,12 +192,14 @@ export const auditPayloadSchema = versioned.extend({
 });
 
 export type PushPayload = z.infer<typeof pushPayloadSchema>;
+export type EmailPayload = z.infer<typeof emailPayloadSchema>;
 export type RealtimePayload = z.infer<typeof realtimePayloadSchema>;
 export type AuditPayload = z.infer<typeof auditPayloadSchema>;
 
 /** Schema do payload conforme a família do evento. */
 export function payloadSchemaFor(family: OutboxEventFamily) {
   if (family === "push") return pushPayloadSchema;
+  if (family === "email") return emailPayloadSchema;
   if (family === "realtime") return realtimePayloadSchema;
   return auditPayloadSchema;
 }
@@ -196,6 +223,8 @@ export const OUTBOX_ERROR_CODES = [
   "UNKNOWN_EVENT_TYPE",
   "PUSH_PROVIDER_FAILED",
   "PUSH_NO_RECIPIENTS",
+  "EMAIL_PROVIDER_FAILED",
+  "EMAIL_REJECTED",
   "REALTIME_PUBLISH_FAILED",
   "AUDIT_INSERT_FAILED",
   "HANDLER_UNEXPECTED_ERROR",

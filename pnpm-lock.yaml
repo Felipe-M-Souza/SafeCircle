@@ -62,6 +62,9 @@ importers:
       fastify-plugin:
         specifier: ^6.0.0
         version: 6.0.0
+      nodemailer:
+        specifier: ^10.0.10
+        version: 10.0.10
       postgres:
         specifier: ^3.4.9
         version: 3.4.9
@@ -75,6 +78,9 @@ importers:
       '@types/node':
         specifier: ^22.20.2
         version: 22.20.2
+      '@types/nodemailer':
+        specifier: ^8.0.2
+        version: 8.0.2
       '@types/ws':
         specifier: 8.18.1
         version: 8.18.1
@@ -1925,6 +1931,9 @@ packages:
 
   '@types/node@22.20.3':
     resolution: {integrity: sha512-DZmzkmwHzXrLPAXPyKNDzlIwMMUZCVacoD25ywdy5YTKGbOx/2ld+Q38Im2zJ0vBuZP5Prd3VZutKZyXwkOS8A==}
+
+  '@types/nodemailer@8.0.2':
+    resolution: {integrity: sha512-c7M5ox8p0nEOfbJ2E9Qcmt8/QCu/VzsiAhzBiZbvky2PhKZDHpKB3sQHBM5MEZNkCfBOaS6S9//AGPRTNB7IaA==}
 
   '@types/react-reconciler@0.31.0':
     resolution: {integrity: sha512-wa1KtV3SHKnWeLHfZFg/7nrPSe/Ejdn+qbanNX4V6i9I7C3ECKPfBnC1KM3ef58KFWEohLmTvoTH5XuEIKGX2g==}
@@ -3898,6 +3907,10 @@ packages:
   node-releases@2.0.55:
     resolution: {integrity: sha512-mIrE/Cw9y+9Au6dS5vDKDhQza9YvG6w+ZrS6X+ZzA7yFW/soAeaups4Qzn1bL6g5FVy8WtP79+0j82oPIbqRjQ==}
     engines: {node: '>=18'}
+
+  nodemailer@10.0.10:
+    resolution: {integrity: sha512-He9XskOFms62SyAKkLu8CcGcYHAo+BSHSsORI8s4PJH8qZgZY4L4lDfvyN0twvmbpyG+eGrxpyBlskj9d9rJ8A==}
+    engines: {node: '>=20.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -6344,7 +6357,7 @@ snapshots:
   '@jest/console@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       chalk: 4.1.2
       jest-message-util: 29.7.0
       jest-util: 29.7.0
@@ -6437,7 +6450,7 @@ snapshots:
       '@jest/transform': 29.7.0
       '@jest/types': 29.6.3
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit: 0.1.2
@@ -6801,7 +6814,7 @@ snapshots:
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -6833,6 +6846,10 @@ snapshots:
   '@types/node@22.20.3':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/nodemailer@8.0.2':
+    dependencies:
+      '@types/node': 22.20.3
 
   '@types/react-reconciler@0.31.0(@types/react@19.2.18)':
     dependencies:
@@ -8531,7 +8548,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -8612,7 +8629,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       chalk: 4.1.2
       emittery: 0.13.1
       graceful-fs: 4.2.11
@@ -8640,7 +8657,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       chalk: 4.1.2
       cjs-module-lexer: 1.4.3
       collect-v8-coverage: 1.0.3
@@ -8722,7 +8739,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -8731,7 +8748,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 22.20.2
+      '@types/node': 22.20.3
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -9190,6 +9207,8 @@ snapshots:
   node-int64@0.4.0: {}
 
   node-releases@2.0.55: {}
+
+  nodemailer@10.0.10: {}
 
   normalize-path@3.0.0: {}
 

@@ -11,6 +11,8 @@ declare module "fastify" {
 export interface OutboxPluginOptions {
   /** Inicia o worker com o servidor (desligado nos testes, que chamam runOnce()). */
   autoStart: boolean;
+  /** Deep link público do app, usado nos e-mails (Phase 13). */
+  appDeepLink: string;
   pollIntervalMs?: number;
   batchSize?: number;
   concurrency?: number;
@@ -33,7 +35,9 @@ export const outboxPlugin = fp(
     const worker = new OutboxWorker({
       db: app.db,
       pushProvider: app.pushProvider,
+      emailProvider: app.emailProvider,
       realtime: app.realtime,
+      appDeepLink: options.appDeepLink,
       log: app.log,
       pollIntervalMs: options.pollIntervalMs,
       batchSize: options.batchSize,

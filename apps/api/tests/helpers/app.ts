@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../../src/app.js";
+import { FakeEmailProvider } from "../../src/infrastructure/email/fake-email-provider.js";
+import type { EmailProvider } from "../../src/infrastructure/email/email-provider.js";
 import { FakePushProvider } from "../../src/infrastructure/push/fake-push-provider.js";
 import type { PushProvider } from "../../src/infrastructure/push/push-provider.js";
 import { getTestDatabaseUrl } from "./test-db.js";
@@ -7,6 +9,8 @@ import { getTestDatabaseUrl } from "./test-db.js";
 export interface TestAppOptions {
   /** Padrão: um FakePushProvider novo (nenhum teste chama a API real da Expo). */
   pushProvider?: PushProvider;
+  /** Padrão: um FakeEmailProvider novo (nenhum teste abre conexão SMTP). */
+  emailProvider?: EmailProvider;
   /** Phase 9: habilita /metrics nesta instância. */
   metricsEnabled?: boolean;
   /** Phase 9: exige Bearer em /metrics. */
@@ -28,6 +32,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<Fasti
     logger: options.logger ?? false,
     databaseUrl: getTestDatabaseUrl(),
     pushProvider: options.pushProvider ?? new FakePushProvider(),
+    emailProvider: options.emailProvider ?? new FakeEmailProvider(),
     metricsEnabled: options.metricsEnabled,
     metricsToken: options.metricsToken,
     exposeTestErrorRoute: options.exposeTestErrorRoute,

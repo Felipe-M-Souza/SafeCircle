@@ -28,6 +28,9 @@ import { journeySchedulerPlugin } from "./plugins/journey-scheduler.js";
 import { privacyRoutes } from "./modules/privacy/privacy.routes.js";
 import { outboxPlugin } from "./plugins/outbox.js";
 import { REDACTED_LOG_PATHS, resolveRequestId } from "./observability/request-context.js";
+import type { EmailProvider } from "./infrastructure/email/email-provider.js";
+import { NoopEmailProvider } from "./infrastructure/email/noop-email-provider.js";
+import { SmtpEmailProvider } from "./infrastructure/email/smtp-email-provider.js";
 import { ExpoPushProvider } from "./infrastructure/push/expo-push-provider.js";
 import { NoopPushProvider } from "./infrastructure/push/noop-push-provider.js";
 import type { PushProvider } from "./infrastructure/push/push-provider.js";
@@ -36,6 +39,7 @@ import { createOriginPolicy } from "./security/origins.js";
 declare module "fastify" {
   interface FastifyInstance {
     pushProvider: PushProvider;
+    emailProvider: EmailProvider;
   }
 }
 
@@ -52,6 +56,8 @@ export interface BuildAppOptions {
   databaseUrl?: string;
   /** Provedor de push injetável (testes usam FakePushProvider). Padrão: Expo. */
   pushProvider?: PushProvider;
+  /** Provedor de e-mail injetável (Phase 13). Padrão: EMAIL_PROVIDER do ambiente. */
+  emailProvider?: EmailProvider;
   /**
    * Inicia o scheduler de check-ins com o servidor (Phase 7).
    * Padrão: ligado, exceto em NODE_ENV=test (os testes chamam runOnce()).
@@ -207,6 +213,24 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : new ExpoPushProvider({ accessToken: config.expoAccessToken })),
   );
 
+  // Provedor de e-mail (Phase 13). Sem SMTP configurado, o convite continua
+  // funcionando no app: o provedor noop registra a intenção e segue.
+  app.decorate(
+    "emailProvider",
+    options.emailProvider ??
+      (config.emailProvider === "smtp" && config.smtp.host
+        ? new SmtpEmailProvider({
+            host: config.smtp.host,
+            port: config.smtp.port,
+            secure: config.smtp.secure,
+            user: config.smtp.user,
+            password: config.smtp.password,
+            from: config.emailFrom,
+            log: app.log,
+          })
+        : new NoopEmailProvider(app.log)),
+  );
+
   await app.register(healthRoutes, { appVersion: config.appVersion });
   await app.register(metricsRoutes, {
     enabled: options.metricsEnabled ?? config.metricsEnabled,
@@ -257,6 +281,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(outboxPlugin, {
       autoStart:
         options.outboxWorkerAutoStart ?? (config.outboxEnabled && config.nodeEnv !== "test"),
+      appDeepLink: config.appDeepLink,
       pollIntervalMs: config.outboxPollIntervalMs,
       batchSize: config.outboxBatchSize,
       concurrency: config.outboxConcurrency,
