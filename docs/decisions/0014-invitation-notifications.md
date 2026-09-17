@@ -40,20 +40,45 @@ convidado **ainda não é membro**, então o handler resolve o destinatário pel
 e-mail do convite. Sem conta ou sem aparelho ativo, não há push e isso não é
 erro: o evento fica `PROCESSED`, porque não há nada a entregar.
 
-### 3. Provedor de e-mail por SMTP, não por SDK
+### 3. Dois provedores: API HTTP do Resend e SMTP genérico
 
-`EmailProvider` com duas implementações, no mesmo padrão do push:
-`SmtpEmailProvider` (nodemailer) e `NoopEmailProvider`. SMTP funciona com
-Resend, SendGrid, Amazon SES, Postmark ou Gmail — a escolha do provedor vira
-configuração de ambiente, não dependência de código, e trocar de fornecedor não
-mexe em uma linha do domínio.
+`EmailProvider` com três implementações, no mesmo padrão do push:
+`ResendApiEmailProvider` (HTTP), `SmtpEmailProvider` (nodemailer) e
+`NoopEmailProvider`. A escolha vira configuração de ambiente, não dependência
+de código.
+
+A primeira decisão foi só SMTP, por portabilidade: funciona com Resend,
+SendGrid, Amazon SES, Postmark ou Gmail. **Isso quebrou na hospedagem.** O
+Railway bloqueia portas SMTP de saída (465 e 587) fora do plano Pro, e a
+conexão expira com `ETIMEDOUT` antes de qualquer autenticação — verificado em
+produção em 2026-09-17, com o mesmo endereço respondendo normalmente de fora.
+
+A API HTTP do Resend usa a porta 443, que nenhuma hospedagem bloqueia, e foi
+por isso que a abstração existia: adicionar o caminho custou uma classe, sem
+tocar no domínio. O SMTP fica para quem hospedar em outro lugar.
+
+Ganho colateral do caminho HTTP: a API do Resend aceita `Idempotency-Key`.
+Como a outbox é at-least-once, reprocessar um evento entregaria o convite duas
+vezes; com o id do evento como chave, o provedor descarta a repetição.
 
 O padrão é `noop`, inclusive em produção. Diferente do push, e-mail **não** é
 recusado em produção sem configuração: o convite continua funcionando dentro do
 app, e um deploy sem SMTP é uma limitação conhecida, não um erro que impeça a
 API de subir.
 
-### 4. Falha permanente contra falha transitória
+### 4. Configuração de e-mail nunca derruba a API
+
+A validação inicial recusava o boot quando o provedor escolhido estava sem
+credencial. Parecia prudente e estava errado: derrubou o serviço inteiro duas
+vezes durante a configuração, deixando SOS, alertas e trajetos fora do ar por
+causa de **convite por e-mail**.
+
+`selectEmailProvider` passou a cair para `noop` com um log de erro explícito
+(`email_provider_misconfigured`, nomeando a variável que falta). O e-mail
+desliga, o resto continua. O log é alto de propósito: silenciar levaria a
+descobrir meses depois que nenhum convite chegou.
+
+### 5. Falha permanente contra falha transitória
 
 Resposta SMTP 5xx (endereço inexistente, domínio recusando) é permanente: o
 evento vai para DEAD sem gastar retries. Qualquer outra falha — conexão,
@@ -61,7 +86,7 @@ autenticação, limite temporário — é transitória e volta pela outbox. Pol�
 família `email`: 6 tentativas, TTL de 24 h. Um convite vale 7 dias; depois de um
 dia sem conseguir entregar, insistir não ajuda mais.
 
-### 5. O que vai na mensagem
+### 6. O que vai na mensagem
 
 Nome do grupo, primeiro nome de quem convidou e a data de expiração. Nada além
 disso: sem sobrenome, sem lista de membros, sem telefone, sem localização.
@@ -75,7 +100,7 @@ até lá.
 O e-mail não tem imagem remota, pixel de rastreamento nem link de terceiros. O
 único link é o deep link do próprio app (`APP_DEEP_LINK`, público, sem token).
 
-### 6. Log sem PII
+### 7. Log sem PII
 
 Nem o provedor nem o handler registram o endereço: o log carrega
 `fingerprintEmail`, um hash curto que serve para correlacionar uma entrega sem
@@ -86,9 +111,11 @@ essa regra — do contrário o log local viraria um vazamento.
 
 - **Guardar o e-mail no payload** e evitar a consulta na entrega: mais simples,
   mas coloca PII numa tabela durável e entrega convite revogado.
-- **SDK de um provedor específico** (Resend): integração mais direta e melhor
-  rastreamento, mas amarra o projeto a um fornecedor por um volume de e-mail que
-  é baixo por natureza.
+- **Só o SDK oficial do Resend**: amarraria o projeto a um fornecedor. A API
+  HTTP é chamada com `fetch` e um corpo JSON de quatro campos; um SDK não
+  acrescentaria nada além da dependência.
+- **Manter só SMTP e assinar o plano Pro do Railway** para desbloquear as
+  portas: cerca de 20 dólares por mês para enviar alguns convites.
 - **Exigir SMTP em produção**, como o push exige `expo`: transformaria uma
   melhoria em bloqueador de deploy.
 - **Link de aceite direto no e-mail** (token de uso único): aceitaria o convite
@@ -97,6 +124,9 @@ essa regra — do contrário o log local viraria um vazamento.
   explícita sobre isso.
 
 ## Limites conhecidos
+
+- O caminho SMTP existe no código mas **não é exercitado no ambiente atual**:
+  o Railway o bloqueia. Só foi validado em teste, não em produção.
 
 - Sem domínio verificado e registros SPF/DKIM, o e-mail tende a cair em spam.
   Isso é configuração de infraestrutura do proprietário, não do código.

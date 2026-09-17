@@ -20,6 +20,11 @@ export interface EmailMessage {
   text: string;
   /** Corpo HTML opcional. */
   html?: string;
+  /**
+   * Chave de idempotência (id do evento da outbox). A entrega é at-least-once;
+   * com ela o provedor descarta a repetição em vez de mandar o convite de novo.
+   */
+  idempotencyKey?: string;
 }
 
 export type EmailDeliveryStatus = "sent" | "failed" | "invalidAddress";

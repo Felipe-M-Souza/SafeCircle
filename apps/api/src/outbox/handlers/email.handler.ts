@@ -73,6 +73,8 @@ export async function handleEmailEvent(
     },
     { deepLink: ctx.appDeepLink },
   );
+  // Reprocessamento da outbox não pode virar convite duplicado.
+  message.idempotencyKey = ctx.eventId;
 
   const result = await ctx.emailProvider.send(message);
   const recipient = fingerprintEmail(row.invitedEmail);

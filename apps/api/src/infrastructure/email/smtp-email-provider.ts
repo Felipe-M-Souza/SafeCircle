@@ -63,11 +63,15 @@ export class SmtpEmailProvider implements EmailProvider {
         subject: message.subject,
         text: message.text,
         html: message.html,
+        headers: message.idempotencyKey
+          ? { "Resend-Idempotency-Key": message.idempotencyKey }
+          : undefined,
       });
       this.log.info({ event: "email_sent", provider: this.name, recipient }, "E-mail enviado");
       return { status: "sent" };
     } catch (error) {
-      const code = (error as { responseCode?: number }).responseCode;
+      const failure = error as { responseCode?: number; code?: string; command?: string };
+      const code = failure.responseCode;
       const permanent = isPermanentSmtpError(code);
       this.log.warn(
         {
@@ -75,6 +79,11 @@ export class SmtpEmailProvider implements EmailProvider {
           provider: this.name,
           recipient,
           responseCode: typeof code === "number" ? code : undefined,
+          // Código técnico do erro (ECONNREFUSED, ETIMEDOUT, EAUTH, ESOCKET...)
+          // e comando SMTP em que parou. Nenhum dos dois carrega endereço,
+          // credencial ou conteúdo — existem para diagnosticar entrega.
+          errorCode: typeof failure.code === "string" ? failure.code : undefined,
+          smtpCommand: typeof failure.command === "string" ? failure.command : undefined,
           permanent,
         },
         "Falha ao enviar e-mail",

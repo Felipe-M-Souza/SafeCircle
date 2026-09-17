@@ -337,8 +337,18 @@ convidado. O endereço **não** entra no payload da outbox: o handler o carrega 
 convite no momento da entrega, então convite revogado ou expirado nesse
 intervalo não gera aviso. Decisões em `docs/decisions/0014-invitation-notifications.md`.
 
-O provedor de e-mail é configurado por ambiente e fala SMTP, então funciona com
-Resend, SendGrid, Amazon SES, Postmark ou Gmail sem mudar código:
+O provedor de e-mail é configuração de ambiente, com dois caminhos.
+
+**API HTTP do Resend** (porta 443), necessário onde a hospedagem bloqueia SMTP
+de saída — é o caso do Railway fora do plano Pro:
+
+```bash
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=...       # segredo: só nas variáveis do ambiente
+EMAIL_FROM=SafeCircle <nao-responda@seu-dominio.com>
+```
+
+**SMTP genérico**, que fala com Resend, SendGrid, Amazon SES, Postmark ou Gmail:
 
 ```bash
 EMAIL_PROVIDER=smtp
@@ -346,12 +356,13 @@ SMTP_HOST=smtp.seu-provedor.com
 SMTP_PORT=587
 SMTP_USER=...
 SMTP_PASSWORD=...        # segredo: só nas variáveis do ambiente
-EMAIL_FROM=SafeCircle <nao-responda@seu-dominio.com>
 ```
 
-Sem `EMAIL_PROVIDER=smtp` o padrão é `noop`: o envio é registrado e descartado,
-e o convite continua funcionando dentro do app. Para o e-mail não cair em spam,
-o domínio do remetente precisa de SPF e DKIM configurados no DNS.
+O padrão é `noop`: o envio é registrado e descartado, e o convite continua
+funcionando dentro do app. Provedor escolhido sem credencial **não derruba a
+API** — ela sobe, desliga o e-mail e registra `email_provider_misconfigured`.
+Para o e-mail não cair em spam, o domínio do remetente precisa de SPF e DKIM no
+DNS; um subdomínio dedicado isola a reputação do e-mail corporativo.
 
 ### Localização com a tela bloqueada
 
