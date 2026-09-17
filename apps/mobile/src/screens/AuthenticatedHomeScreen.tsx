@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BrandLogo } from "../components/BrandLogo";
 import { useAuth } from "../auth/AuthContext";
 import { CheckinsHomeSection } from "../components/CheckinsHomeSection";
 import { JourneysHomeSection } from "../components/JourneysHomeSection";
@@ -230,7 +231,7 @@ export function AuthenticatedHomeScreen({ nav }: { nav: Nav }): React.JSX.Elemen
       testID="home-scroll"
     >
       <View style={styles.card}>
-        <Text style={styles.brand}>{strings.common.appName}</Text>
+        <BrandLogo />
         <Text style={styles.greeting}>{t.greeting(user?.name ?? "")}</Text>
 
         {renderSosArea()}
@@ -323,7 +324,6 @@ const styles = StyleSheet.create({
     padding: 28,
     gap: 14,
   },
-  brand: { color: colors.primaryText, fontSize: 26, fontWeight: "800" },
   greeting: { color: colors.primaryText, fontSize: 22, fontWeight: "700" },
   sectionLabel: { color: colors.mutedText, fontSize: 13, fontWeight: "700", marginTop: 4 },
   groupRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
