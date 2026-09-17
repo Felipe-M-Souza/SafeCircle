@@ -92,7 +92,13 @@ const envSchema = z
 
     // Phase 13 — e-mail transacional (convites). `noop` registra e descarta:
     // o convite continua visível no app, só não sai aviso por e-mail.
-    EMAIL_PROVIDER: z.preprocess(emptyToUndefined, z.enum(["smtp", "noop"]).default("noop")),
+    // `resend`: API HTTP (porta 443). Necessário onde a hospedagem bloqueia
+    // SMTP de saída — é o caso do Railway fora do plano Pro.
+    EMAIL_PROVIDER: z.preprocess(
+      emptyToUndefined,
+      z.enum(["resend", "smtp", "noop"]).default("noop"),
+    ),
+    RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
     SMTP_HOST: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
     SMTP_SECURE: booleanFlag("false"),
@@ -170,10 +176,9 @@ const envSchema = z
       issue("TRUST_PROXY", "Use `true`, `false` ou o número de proxies confiáveis.");
     }
 
-    // SMTP escolhido exige host: melhor falhar no boot que descobrir na entrega.
-    if (value.EMAIL_PROVIDER === "smtp" && !value.SMTP_HOST) {
-      issue("SMTP_HOST", "SMTP_HOST é obrigatório quando EMAIL_PROVIDER=smtp.");
-    }
+    // Provedor de e-mail mal configurado NÃO derruba a API: `selectEmailProvider`
+    // avisa no log e cai para `noop`. Deixar o SOS fora do ar porque o convite
+    // por e-mail está sem credencial seria a troca errada num app de emergência.
 
     if (value.NODE_ENV !== "production") return;
 
@@ -230,7 +235,8 @@ export interface Config {
   expoAccessToken?: string;
   /** `expo` em produção; `noop` só para E2E/staging sem credenciais. */
   pushProvider: "expo" | "noop";
-  emailProvider: "smtp" | "noop";
+  emailProvider: "resend" | "smtp" | "noop";
+  resendApiKey: string | undefined;
   smtp: {
     host: string | undefined;
     port: number;
@@ -299,6 +305,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     expoAccessToken: env.EXPO_ACCESS_TOKEN,
     pushProvider: env.PUSH_PROVIDER,
     emailProvider: env.EMAIL_PROVIDER,
+    resendApiKey: env.RESEND_API_KEY,
     smtp: {
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
