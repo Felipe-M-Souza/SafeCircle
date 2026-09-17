@@ -1,4 +1,4 @@
-# Site institucional — publicação no Cloudflare Pages
+# Site institucional — publicação na Cloudflare
 
 Como publicar `apps/web` em `safecircle.softechconsulting.com.br`. Nada aqui é
 segredo.
@@ -9,9 +9,9 @@ Google Play e App Store **exigem** uma URL pública de política de privacidade
 no cadastro do aplicativo. Sem o site no ar, o app não é publicado. Por isso o
 site entra antes da publicação, não depois.
 
-## Por que Cloudflare Pages
+## Por que a Cloudflare
 
-|                         | Cloudflare Pages                  | HostGator (já contratado)        |
+|                         | Cloudflare                        | HostGator (já contratado)        |
 | ----------------------- | --------------------------------- | -------------------------------- |
 | Custo                   | gratuito                          | já pago                          |
 | Publicação              | automática a cada push no GitHub  | manual, por FTP ou cPanel        |
@@ -21,7 +21,7 @@ site entra antes da publicação, não depois.
 
 O que decidiu foi a publicação automática: a política de privacidade precisa
 acompanhar mudanças de comportamento do app, e um processo manual acaba
-esquecido. Com o Pages, atualizar o texto é abrir um pull request.
+esquecido. Na Cloudflare, atualizar o texto é abrir um pull request.
 
 ## Passo a passo
 
@@ -52,31 +52,95 @@ mão, e ele não vai para o repositório.
 
 Não há etapa de build: o site é estático e é publicado como está.
 
-### 2. Apontar o domínio
+### 2. Migrar o DNS para a Cloudflare
 
-1. No projeto criado, vá em **Custom domains**, **Set up a custom domain**.
-2. Informe `safecircle.softechconsulting.com.br`.
-3. O Cloudflare mostra um registro `CNAME` para adicionar.
-4. No HostGator, em **Editar Zona Avançada de DNS** da zona
-   `softechconsulting.com.br`, adicione esse `CNAME`.
+Ligar o subdomínio ao Worker exige que a zona `softechconsulting.com.br`
+esteja na Cloudflare. Um domínio hospedado em outro provedor não aceita o
+"Connect domain" do Worker.
 
-Cuidado conhecido do cPanel: ele completa o domínio sozinho. Confira o nome
-final depois de salvar, para não virar
-`safecircle.softechconsulting.com.br.softechconsulting.com.br`.
+A migração é uma cópia da zona, não uma transferência de registro: o domínio
+continua registrado onde está, muda apenas quem responde pelas consultas de DNS.
+
+**O escaneamento automático da Cloudflare não traz tudo.** Na zona real ele
+encontrou 16 dos 28 registros. Ficaram de fora os dois `MX`, o `SPF`, o
+`DMARC`, o `DKIM` do Resend, os dois `CNAME` de envio, o `DKIM` do cPanel e
+quatro nomes de serviço (`mail`, `cpanel`, `webdisk`, `autoconfig`). Publicar
+assim derrubaria o e-mail do domínio.
+
+Antes de trocar os nameservers, tire um retrato da zona antiga consultando os
+servidores autoritativos do provedor atual e compare com o que a Cloudflare
+importou. Os nomes ausentes se descobrem por varredura: os padrões do cPanel
+(`mail`, `cpanel`, `webmail`, `webdisk`, `autoconfig`, `autodiscover`, `whm`,
+`ftp`, `cpcalendars`, `cpcontacts`) e os seletores de DKIM em uso.
+
+O que faltar entra por **DNS > Records > Import**, com um arquivo de zona BIND
+e a caixa **Proxy imported DNS records** desmarcada. Valor de `TXT` acima de
+255 caracteres precisa ser quebrado em vários trechos entre aspas, na mesma
+linha.
+
+#### Proxy desligado em tudo
+
+Todos os 28 registros ficam em **DNS only** (nuvem cinza). Não é provisório
+por preguiça, é necessário:
+
+| Registro                                                                                                | Por que não pode ser proxiado                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `webmail`, `cpanel`, `whm`, `ftp`, `webdisk`, `cpcalendars`, `cpcontacts`, `autoconfig`, `autodiscover` | rodam em portas que o proxy HTTP da Cloudflare não repassa                                                              |
+| `send.safecircle`, `rsend.safecircle`                                                                   | são do Resend; proxiar quebra a autenticação de envio                                                                   |
+| raiz e `www`                                                                                            | o site atual é servido pelo HostGator; ligar o proxy muda o comportamento de TLS e pode causar laço de redirecionamento |
+
+Ligar o proxy na raiz e no `www` é uma decisão separada, para depois que a
+migração estiver estável.
+
+#### Conferir antes de trocar
+
+Dá para validar a zona nova **antes** de mexer no registrador, perguntando
+direto aos nameservers que a Cloudflare atribuiu:
+
+```bash
+pnpm dns:check 108.162.192.85
+```
+
+Enquanto os nameservers não mudam, esse endereço responde pela zona da
+Cloudflare e o resolvedor público ainda responde pela antiga. Rodar contra os
+dois e obter o mesmo resultado é a prova de que a troca não vai derrubar nada.
+
+Na migração real os 28 registros conferiram nos dois lados antes da troca.
+
+#### Trocar os nameservers
+
+Último passo, feito no registrador (Registro.br para `.com.br`):
+
+| Substituir                | Por                        |
+| ------------------------- | -------------------------- |
+| `ns1132.hostgator.com.br` | `chloe.ns.cloudflare.com`  |
+| `ns1133.hostgator.com.br` | `edward.ns.cloudflare.com` |
+
+A Cloudflare verifica sozinha, normalmente em 1 a 2 horas.
+
+#### Ligar o subdomínio ao Worker
+
+Só depois da zona ativa: no Worker `safecircle-site`, **Settings > Domains &
+Routes > Add > Custom domain**, e informe
+`safecircle.softechconsulting.com.br`. A Cloudflare cria o registro e emite o
+certificado sozinha.
 
 ### 3. Verificar que o e-mail não quebrou
 
-O mesmo subdomínio já é usado pelo Resend para enviar convites. Site e e-mail
-convivem sem conflito, mas confirme depois da mudança:
+Esta é a verificação que importa. O domínio recebe e envia e-mail por dois
+caminhos independentes: as caixas `@softechconsulting.com.br` no Titan, e os
+convites do SafeCircle pelo Resend. Os dois passam a depender da zona nova.
+
+Depois que os nameservers propagarem, compare a resposta da Cloudflare com o
+retrato da zona antiga:
 
 ```bash
-nslookup -type=TXT resend._domainkey.safecircle.softechconsulting.com.br 8.8.8.8
-nslookup -type=CNAME send.safecircle.softechconsulting.com.br 8.8.8.8
-nslookup -type=MX softechconsulting.com.br 8.8.8.8
+pnpm dns:check
 ```
 
-Os dois primeiros devem continuar respondendo, e o terceiro deve continuar
-apontando para `titan.email`. Se algum falhar, um registro foi sobrescrito.
+O script consulta um resolvedor público e confere nome por nome. Nenhum
+registro pode estar ausente nem com valor diferente. Um `DKIM` que perdeu um
+caractere não dá erro: os e-mails apenas passam a cair em spam, sem aviso.
 
 ### 4. Confirmar os cabeçalhos de segurança
 
@@ -92,10 +156,12 @@ curl -sI https://safecircle.softechconsulting.com.br | grep -i "content-security
 1. Preencha os trechos `[preencher]` das páginas legais e remova os avisos de
    rascunho. A lista está em `apps/web/README.md`.
 2. Cadastre as URLs no console das lojas:
-   - Política de privacidade: `https://safecircle.softechconsulting.com.br/privacidade.html`
-   - Suporte: `https://safecircle.softechconsulting.com.br/suporte.html`
-3. Considere adicionar o registro DMARC que falta em `softechconsulting.com.br`,
-   com `p=none` para começar monitorando. Melhora a entrega dos convites.
+   - Política de privacidade: `https://safecircle.softechconsulting.com.br/privacidade`
+   - Suporte: `https://safecircle.softechconsulting.com.br/suporte`
+3. O DMARC do domínio está em `p=none`, que só observa. Depois de algumas
+   semanas com SPF e DKIM passando, vale endurecer para `p=quarantine`. Antes
+   disso não: uma política rígida com autenticação incompleta faz os convites
+   pararem de chegar.
 
 ## Manutenção
 
