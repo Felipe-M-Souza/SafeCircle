@@ -329,6 +329,30 @@ não tem fluxo ponta a ponta funcional. Nunca use `eas submit` nem o profile
 Detalhes, limitações e instalação manual em
 `docs/release/expo-eas-apk-preview.md`.
 
+### Convites: aviso por push e e-mail
+
+Ao criar um convite, a mesma transação enfileira na outbox um push para a pessoa
+convidada (se ela já tiver conta e aparelho ativo) e um e-mail para o endereço
+convidado. O endereço **não** entra no payload da outbox: o handler o carrega do
+convite no momento da entrega, então convite revogado ou expirado nesse
+intervalo não gera aviso. Decisões em `docs/decisions/0014-invitation-notifications.md`.
+
+O provedor de e-mail é configurado por ambiente e fala SMTP, então funciona com
+Resend, SendGrid, Amazon SES, Postmark ou Gmail sem mudar código:
+
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.seu-provedor.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...        # segredo: só nas variáveis do ambiente
+EMAIL_FROM=SafeCircle <nao-responda@seu-dominio.com>
+```
+
+Sem `EMAIL_PROVIDER=smtp` o padrão é `noop`: o envio é registrado e descartado,
+e o convite continua funcionando dentro do app. Para o e-mail não cair em spam,
+o domínio do remetente precisa de SPF e DKIM configurados no DNS.
+
 ## 1. Visão geral
 
 O **SafeCircle** é um aplicativo mobile de segurança pessoal criado para permitir que uma pessoa peça ajuda rapidamente a uma rede privada de pessoas de confiança quando se sentir em risco ou precisar de auxílio.
