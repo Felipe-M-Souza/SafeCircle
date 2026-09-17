@@ -284,12 +284,15 @@ export const ptBR = {
     notSharing: "O usuário não está compartilhando localização ao vivo.",
     waitingFirstPoint: "Localização ainda não disponível.",
     center: "CENTRALIZAR",
+    serviceNotificationTitle: "SafeCircle: compartilhando sua localização",
+    serviceNotificationBody:
+      "Seu grupo de confiança vê onde você está. Toque para abrir e parar quando quiser.",
     mapUnavailable: "Mapa indisponível nesta plataforma.",
     mapNotConfigured:
       "O mapa não está disponível nesta versão do app. A posição continua sendo compartilhada com o grupo.",
     openInMaps: "ABRIR NO APP DE MAPAS",
-    foregroundOnlyNote:
-      "A localização ao vivo é atualizada enquanto o SafeCircle está aberto. Em segundo plano ou com a tela bloqueada, a posição não é atualizada.",
+    sharingScopeNote:
+      "A posição continua sendo atualizada com a tela bloqueada ou o app em segundo plano, enquanto o compartilhamento estiver ligado. Uma notificação fixa mostra isso o tempo todo, e fechar o app encerra o compartilhamento.",
   },
   alertStatus: {
     ACTIVE: "ATIVO",

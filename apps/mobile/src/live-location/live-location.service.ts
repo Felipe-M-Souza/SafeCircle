@@ -1,37 +1,31 @@
 import * as Location from "expo-location";
 import { Platform } from "react-native";
+import { subscribeLocationUpdates } from "./background-location";
+import type { LocationSample, WatchHandle } from "./location-sample";
+
+export {
+  toLocationSample,
+  WATCH_DISTANCE_INTERVAL_M,
+  WATCH_TIME_INTERVAL_MS,
+  type LocationSample,
+  type WatchHandle,
+} from "./location-sample";
 
 /**
- * Acesso ao GPS para a localização ao vivo (Phase 6) — SOMENTE em primeiro plano.
+ * Acesso ao GPS para a localização ao vivo (Phase 6; estendido na Phase 13).
  *
- * Nunca inicia background location nem rastreia fora de um alerta ativo com
- * compartilhamento ligado. A permissão é pedida apenas quando o criador ativa
- * o recurso explicitamente. Coordenadas nunca são registradas em logs.
+ * A permissão pedida continua sendo **apenas a de primeiro plano**: o
+ * compartilhamento só começa com o app aberto e com a pessoa ativando o
+ * recurso. A partir daí ele continua com a tela bloqueada, através de um
+ * serviço em primeiro plano com notificação fixa no Android e do indicador
+ * azul no iOS (ADR 0015) — nunca de rastreamento silencioso, e sem a permissão
+ * `ACCESS_BACKGROUND_LOCATION`.
+ *
+ * Coordenadas nunca são registradas em logs.
  */
 
 export type LiveLocationPermission =
   "granted" | "denied" | "blocked" | "services-disabled" | "unavailable";
-
-/**
- * Frequência do watcher (expo-location): no máximo um callback a cada 5 s ou
- * a cada 10 m — equilíbrio entre utilidade, bateria, rede e privacidade.
- */
-export const WATCH_TIME_INTERVAL_MS = 5000;
-export const WATCH_DISTANCE_INTERVAL_M = 10;
-
-export interface LocationSample {
-  latitude: number;
-  longitude: number;
-  accuracy?: number | null;
-  altitude?: number | null;
-  heading?: number | null;
-  speed?: number | null;
-  capturedAt: string;
-}
-
-export interface WatchHandle {
-  remove: () => void;
-}
 
 export function isLiveLocationSupported(): boolean {
   return Platform.OS === "ios" || Platform.OS === "android";
@@ -55,39 +49,15 @@ export async function requestLiveLocationPermission(): Promise<LiveLocationPermi
   }
 }
 
-function finiteOrNull(value: number | null | undefined): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-export function toLocationSample(position: Location.LocationObject): LocationSample | null {
-  const { latitude, longitude, accuracy, altitude, heading, speed } = position.coords;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return {
-    latitude,
-    longitude,
-    accuracy: finiteOrNull(accuracy),
-    altitude: typeof altitude === "number" && Number.isFinite(altitude) ? altitude : null,
-    // expo-location devolve -1 quando direção/velocidade não estão disponíveis.
-    heading: finiteOrNull(heading),
-    speed: finiteOrNull(speed),
-    capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
-  };
-}
-
-/** Inicia o watcher de primeiro plano; o chamador é responsável por `remove()`. */
+/**
+ * Inicia o recebimento de posições; o chamador é responsável por `remove()`.
+ *
+ * Desde a Phase 13 isso assina o stream do sistema operacional em vez de um
+ * watcher preso ao primeiro plano, então a posição continua chegando com a
+ * tela bloqueada.
+ */
 export async function watchLiveLocation(
   onSample: (sample: LocationSample) => void,
 ): Promise<WatchHandle> {
-  const subscription = await Location.watchPositionAsync(
-    {
-      accuracy: Location.Accuracy.High,
-      timeInterval: WATCH_TIME_INTERVAL_MS,
-      distanceInterval: WATCH_DISTANCE_INTERVAL_M,
-    },
-    (position) => {
-      const sample = toLocationSample(position);
-      if (sample) onSample(sample);
-    },
-  );
-  return { remove: () => subscription.remove() };
+  return subscribeLocationUpdates(onSample);
 }

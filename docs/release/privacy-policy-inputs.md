@@ -39,8 +39,12 @@ plano.
 - Só é coletada em dois contextos explícitos: ao acionar um SOS (uma posição)
   e quando a pessoa **ativa** o compartilhamento ao vivo durante um alerta ou
   trajeto.
-- **Só em primeiro plano**: com o app fechado ou em segundo plano a
-  localização não é coletada nem enviada. A UI informa isso.
+- **Só enquanto o compartilhamento estiver ligado**, e sempre visível: a
+  coleta continua com a tela bloqueada e o app em segundo plano, mas apenas
+  depois que a pessoa ativa o recurso com o app aberto, e enquanto existe uma
+  notificação fixa (Android) ou o indicador azul do sistema (iOS) dizendo que
+  está acontecendo. Fechar o app encerra a coleta. O app nunca coleta
+  localização sem compartilhamento ativo (ADR 0015).
 - É visível apenas aos membros do grupo daquele alerta/trajeto, enquanto durar
   e por até 30 dias depois. Nunca aparece em notificações push nem em logs.
 - A pessoa pode parar o compartilhamento a qualquer momento; ele também para

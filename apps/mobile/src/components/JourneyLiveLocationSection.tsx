@@ -100,7 +100,7 @@ export function JourneyLiveLocationSection({
                 {t.lastUpdate(Math.max(0, Math.round((now - snapshot.lastSentAt) / 1000)))}
               </Text>
             ) : null}
-            <Text style={styles.note}>{t.foregroundOnlyNote}</Text>
+            <Text style={styles.note}>{t.sharingScopeNote}</Text>
             {confirmingStop ? (
               <View style={styles.confirmBar}>
                 <Text style={styles.body}>{t.confirmStopMessage}</Text>

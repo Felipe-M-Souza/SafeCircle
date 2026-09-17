@@ -120,12 +120,12 @@ localização de outro alerta/grupo.
 
 ## Limitações reais
 
-- **Apenas primeiro plano.** Background location (expo-task-manager,
-  foreground service Android, background modes iOS) **não foi implementado**:
-  exige build nativo, consentimento e indicadores do sistema que não podem ser
-  validados neste ambiente. Em background o SO pode suspender o watcher; ao
-  voltar ao primeiro plano o app ressincroniza e retoma. A UI informa: "O
-  compartilhamento funciona com o SafeCircle aberto."
+- ~~**Apenas primeiro plano.**~~ **Resolvido na Phase 13 (ADR 0015):** o
+  compartilhamento continua com a tela bloqueada e o app em segundo plano, por
+  meio de `expo-task-manager` com serviço em primeiro plano no Android
+  (notificação fixa) e background updates no iOS (indicador azul). A permissão
+  `ACCESS_BACKGROUND_LOCATION` **não** é usada: o compartilhamento só começa
+  com o app aberto, e o serviço morre junto com o app.
 - `react-native-maps` no Android em builds de produção exige uma chave do
   Google Maps (`expo.android.config.googleMaps.apiKey`) — não versionada nem
   inventada; iOS usa Apple Maps. Web mostra placeholder.

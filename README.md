@@ -364,6 +364,18 @@ API** — ela sobe, desliga o e-mail e registra `email_provider_misconfigured`.
 Para o e-mail não cair em spam, o domínio do remetente precisa de SPF e DKIM no
 DNS; um subdomínio dedicado isola a reputação do e-mail corporativo.
 
+### Localização com a tela bloqueada
+
+O compartilhamento ao vivo continua atualizando com a tela bloqueada e o app em
+segundo plano. No Android isso é um **serviço em primeiro plano**: existe uma
+notificação fixa enquanto durar, e a permissão `ACCESS_BACKGROUND_LOCATION`
+**não** é usada (segue bloqueada no `app.json`), o que também dispensa o
+formulário de background location do Google Play. No iOS são background updates
+com o indicador azul visível, sob a permissão "Ao usar o app".
+
+O compartilhamento só começa com uma ação da pessoa e com o app aberto; fechar o
+app encerra. Decisões e limites em `docs/decisions/0015-background-location.md`.
+
 ## 1. Visão geral
 
 O **SafeCircle** é um aplicativo mobile de segurança pessoal criado para permitir que uma pessoa peça ajuda rapidamente a uma rede privada de pessoas de confiança quando se sentir em risco ou precisar de auxílio.

@@ -67,7 +67,8 @@ Não guardamos IP nem User-Agent das sessões (anti-fingerprinting).
 | Sessão de compartilhamento               | `alert_location_sessions`, `journey_location_sessions` | Quando a pessoa compartilhou            | Membros; dono (export, sem pontos)                               | 30 d após encerrar | `location:cleanup`, `journey:cleanup` | alta          | Não                      |
 | Pontos (lat/long/accuracy/heading/speed) | `alert_location_updates`, `journey_location_updates`   | Trajetória durante a emergência/trajeto | Membros do grupo, **só durante e até 30 d**; **nunca** no export | 30 d após encerrar | idem                                  | crítica       | **Nunca**                |
 
-Coleta só em primeiro plano, só com sessão explícita, com throttling; a
+Coleta só com sessão de compartilhamento explícita e sinal visível do sistema
+(notificação fixa no Android, indicador azul no iOS; ADR 0015), com throttling; a
 coleta para quando a sessão termina.
 
 ## Check-ins e trajetos
