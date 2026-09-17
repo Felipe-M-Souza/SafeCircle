@@ -1,0 +1,150 @@
+{
+  "zone": "softechconsulting.com.br",
+  "geradoEm": "2026-09-17T23:33:12.715Z",
+  "fonte": "ns1132.hostgator.com.br",
+  "registros": [
+    {
+      "nome": "autoconfig",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "autodiscover",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "cpcalendars",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "cpcontacts",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "localhost",
+      "tipo": "A",
+      "valor": ["127.0.0.1"]
+    },
+    {
+      "nome": "mail",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "@",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "webdisk",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "whm",
+      "tipo": "A",
+      "valor": ["50.6.138.119"]
+    },
+    {
+      "nome": "cpanel",
+      "tipo": "CNAME",
+      "valor": ["softechconsulting.com.br"]
+    },
+    {
+      "nome": "ftp",
+      "tipo": "CNAME",
+      "valor": ["softechconsulting.com.br"]
+    },
+    {
+      "nome": "rsend.safecircle",
+      "tipo": "CNAME",
+      "valor": ["rsend-sae1.forge.rmta.net"]
+    },
+    {
+      "nome": "send.safecircle",
+      "tipo": "CNAME",
+      "valor": ["send.forge.rmta.net"]
+    },
+    {
+      "nome": "webmail",
+      "tipo": "CNAME",
+      "valor": ["titan.hostgator.com.br"]
+    },
+    {
+      "nome": "www",
+      "tipo": "CNAME",
+      "valor": ["softechconsulting.com.br"]
+    },
+    {
+      "nome": "@",
+      "tipo": "MX",
+      "valor": ["10 mx1.titan.email", "20 mx2.titan.email"]
+    },
+    {
+      "nome": "_acme-challenge",
+      "tipo": "TXT",
+      "valor": ["e9sjgAE9lB1GVHBPdfP8W1lRgJZpTEnGgLmBtUtY5nM"]
+    },
+    {
+      "nome": "_carddavs._tcp",
+      "tipo": "TXT",
+      "valor": ["path=/"]
+    },
+    {
+      "nome": "_carddav._tcp",
+      "tipo": "TXT",
+      "valor": ["path=/"]
+    },
+    {
+      "nome": "_cpanel-dcv-test-record",
+      "tipo": "TXT",
+      "valor": [
+        "_cpanel-dcv-test-record=OJqGJ26QeUXqdrgFQW7RhAVnRsIqASNm6SRXfPcSPf_oj9GFJVAVZ4WfQNjwyABh"
+      ]
+    },
+    {
+      "nome": "default._domainkey",
+      "tipo": "TXT",
+      "valor": [
+        "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoRZU+oj09+/XG4NnbMpweepjCrst7QKZDImdJ2870oEras24e1wSC8KmhYVYZmlYYrfhx1g0GvlL2b12WCjkl7x7vH3eqdA4bRNb+QJr9IKYDcGCbRH6I2MRYtHk84DnOUJMe823NJrtG6WG9EJy7lz/VTQ7sthiBo2hKp3h5rqc5CP1OCwtbDGX9kYq4UnOYAIf04BY+iaswA8orV9GaCd0KK1oRho2KBLvQi8wGdxUDu6jNw8NfE2ePOWOImHOvpYnPf3vY7Ofxob6h4OIX/w5cUbTWZfvjQxk/+dqU0Hy20dnutGvScyEDOrVl7/KdpqY1JaGDLm2MZsvP1zsMwIDAQAB;"
+      ]
+    },
+    {
+      "nome": "_dmarc",
+      "tipo": "TXT",
+      "valor": ["v=DMARC1; p=none;"]
+    },
+    {
+      "nome": "resend._domainkey.safecircle",
+      "tipo": "TXT",
+      "valor": [
+        "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC8OYcONnkDPbyE4Z9lDS7uXBAPpNufu7ZCrT3v6Y7hZ696oG45eDohWPXON3w2y3ux4inRQKvGc2r5nml/XppXlxFWVhIWbtwDn5q7cu5vALSQY6T3/RZTXBr98avHktZrXOalG8/TOrG1COh2YrKVQcaE8EiTfGuMw82VKBYl5wIDAQAB"
+      ]
+    },
+    {
+      "nome": "@",
+      "tipo": "TXT",
+      "valor": ["v=spf1 include:spf.titan.email ~all"]
+    },
+    {
+      "nome": "titan1._domainkey",
+      "tipo": "TXT",
+      "valor": [
+        "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCrfJYYKtDwrgpC+vXrV+N3l1pbpX6cI6Qno3yM9Wov78qUdtwxQHiTSkI0/lkxJKbLVvwOigWvFuS8k3VXBCNwr2JSBk46uhiT8NVklp/CNUCPUsbHfjKZ77WsjRe47S7rM6MhPYVY3UX1CqbfhQxnM3GPUWKnW3CdV3qSILc6cQIDAQAB"
+      ]
+    },
+    {
+      "nome": "_caldavs._tcp",
+      "tipo": "SRV",
+      "valor": ["0 0 2080 br1132.hostgator.com.br"]
+    },
+    {
+      "nome": "_carddav._tcp",
+      "tipo": "SRV",
+      "valor": ["0 0 2079 br1132.hostgator.com.br"]
+    }
+  ]
+}

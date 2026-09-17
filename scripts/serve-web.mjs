@@ -2,8 +2,8 @@
 /**
  * Servidor estático mínimo para revisar `apps/web` localmente.
  *
- * Existe só para desenvolvimento: em produção o site é servido pelo Cloudflare
- * Pages. Sem dependências, para não adicionar pacote ao repositório por causa
+ * Existe só para desenvolvimento: em produção o site é servido pela
+ * Cloudflare. Sem dependências, para não adicionar pacote ao repositório por causa
  * de uma pré-visualização.
  *
  * Segurança: o caminho pedido **nunca** vira caminho de arquivo. A lista de

@@ -31,7 +31,7 @@ Se algum dia entrar um script, essa linha precisa mudar. É bom que precise.
 | `suporte.html`      | Contato, como relatar problema, como entrar nos testes        |
 | `404.html`          | Página de erro                                                |
 | `styles.css`        | Estilos, com tema claro e escuro conforme o sistema           |
-| `_headers`          | Cabeçalhos de segurança aplicados pelo Cloudflare Pages       |
+| `_headers`          | Cabeçalhos de segurança aplicados pela Cloudflare            |
 | `assets/`           | Gerados por `pnpm brand:assets`; não edite à mão              |
 
 ## Rodar localmente
