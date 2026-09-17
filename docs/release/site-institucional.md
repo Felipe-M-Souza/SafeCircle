@@ -156,10 +156,12 @@ curl -sI https://safecircle.softechconsulting.com.br | grep -i "content-security
 1. Preencha os trechos `[preencher]` das páginas legais e remova os avisos de
    rascunho. A lista está em `apps/web/README.md`.
 2. Cadastre as URLs no console das lojas:
-   - Política de privacidade: `https://safecircle.softechconsulting.com.br/privacidade.html`
-   - Suporte: `https://safecircle.softechconsulting.com.br/suporte.html`
-3. Considere adicionar o registro DMARC que falta em `softechconsulting.com.br`,
-   com `p=none` para começar monitorando. Melhora a entrega dos convites.
+   - Política de privacidade: `https://safecircle.softechconsulting.com.br/privacidade`
+   - Suporte: `https://safecircle.softechconsulting.com.br/suporte`
+3. O DMARC do domínio está em `p=none`, que só observa. Depois de algumas
+   semanas com SPF e DKIM passando, vale endurecer para `p=quarantine`. Antes
+   disso não: uma política rígida com autenticação incompleta faz os convites
+   pararem de chegar.
 
 ## Manutenção
 

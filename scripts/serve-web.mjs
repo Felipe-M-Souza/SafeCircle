@@ -30,7 +30,15 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-/** Mapa "/caminho/na/url" → caminho absoluto, montado do disco no boot. */
+/**
+ * Mapa "/caminho/na/url" → caminho absoluto, montado do disco no boot.
+ *
+ * Cada página entra duas vezes: com e sem `.html`. É o comportamento da
+ * Cloudflare, que serve `/privacidade` e responde 307 em `/privacidade.html`.
+ * Os links do site apontam para a forma sem extensão — é ela que vai para a
+ * ficha do aplicativo nas lojas — e aqui as duas funcionam, para que a
+ * pré-visualização local não divirja do que está publicado.
+ */
 async function indexSite(dir) {
   const files = new Map();
   for (const entry of await readdir(dir, { withFileTypes: true, recursive: true })) {
@@ -38,6 +46,7 @@ async function indexSite(dir) {
     const absolute = join(entry.parentPath ?? entry.path, entry.name);
     const url = "/" + relative(ROOT, absolute).split(sep).join(posix.sep);
     files.set(url, absolute);
+    if (url.endsWith(".html")) files.set(url.slice(0, -".html".length), absolute);
   }
   return files;
 }
@@ -59,5 +68,7 @@ createServer(async (req, res) => {
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
   res.end(await readFile(file));
 }).listen(PORT, () => {
-  console.log(`Site em http://localhost:${PORT} (${site.size} arquivos)`);
+  // `site` tem duas chaves por página, então contar os destinos distintos.
+  const arquivos = new Set(site.values()).size;
+  console.log(`Site em http://localhost:${PORT} (${arquivos} arquivos)`);
 });
