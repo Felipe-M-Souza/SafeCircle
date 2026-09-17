@@ -21,7 +21,24 @@ jest.mock("expo-location", () => ({
   // Phase 6 — localização ao vivo (foreground): sem GPS real nos testes.
   hasServicesEnabledAsync: jest.fn(async () => true),
   watchPositionAsync: jest.fn(async () => ({ remove: jest.fn() })),
+  // Phase 13 — atualizações do SO (serviço em primeiro plano no Android).
+  startLocationUpdatesAsync: jest.fn(async () => undefined),
+  stopLocationUpdatesAsync: jest.fn(async () => undefined),
+  hasStartedLocationUpdatesAsync: jest.fn(async () => false),
 }));
+
+// Phase 13 — TaskManager: a task é registrada em memória, nunca no SO.
+jest.mock("expo-task-manager", () => {
+  const tasks = new Map<string, unknown>();
+  return {
+    __esModule: true,
+    defineTask: jest.fn((name: string, handler: unknown) => tasks.set(name, handler)),
+    isTaskDefined: jest.fn((name: string) => tasks.has(name)),
+    unregisterTaskAsync: jest.fn(async () => undefined),
+    /** Só para os testes: dispara a task registrada. */
+    __getTask: (name: string) => tasks.get(name),
+  };
+});
 
 // Phase 6 — mapa: componente nativo substituído por Views simples.
 jest.mock("react-native-maps", () => {

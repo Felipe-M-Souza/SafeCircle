@@ -18,7 +18,9 @@ const NOW = new Date("2026-09-11T20:10:00.000Z");
 const getPermissions = jest.mocked(Location.getForegroundPermissionsAsync);
 const requestPermissions = jest.mocked(Location.requestForegroundPermissionsAsync);
 const servicesEnabled = jest.mocked(Location.hasServicesEnabledAsync);
-const watchPosition = jest.mocked(Location.watchPositionAsync);
+// Phase 13: o compartilhamento usa o stream do SO (serviço em primeiro plano),
+// não mais o watcher de primeiro plano.
+const startUpdates = jest.mocked(Location.startLocationUpdatesAsync);
 
 type PermissionResponse = Awaited<ReturnType<typeof Location.getForegroundPermissionsAsync>>;
 const granted = { status: "granted", canAskAgain: true } as PermissionResponse;
@@ -64,7 +66,7 @@ describe("LiveLocationSection", () => {
     getPermissions.mockResolvedValue(granted);
     requestPermissions.mockResolvedValue(granted);
     servicesEnabled.mockResolvedValue(true);
-    watchPosition.mockResolvedValue({ remove: jest.fn() } as Location.LocationSubscription);
+    startUpdates.mockResolvedValue(undefined);
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -113,7 +115,7 @@ describe("LiveLocationSection", () => {
         ),
       ).toBeOnTheScreen();
       expect(screen.getByText("PARAR LOCALIZAÇÃO AO VIVO")).toBeOnTheScreen();
-      expect(watchPosition).toHaveBeenCalledTimes(1);
+      expect(startUpdates).toHaveBeenCalledTimes(1);
     });
 
     it("permissão negada: mensagem clara, nada inicia e a CTA continua disponível", async () => {
@@ -133,7 +135,7 @@ describe("LiveLocationSection", () => {
       ).toBeOnTheScreen();
       expect(screen.getByText(/continuar usando o alerta normalmente/)).toBeOnTheScreen();
       expect(api.startLiveLocation).not.toHaveBeenCalled();
-      expect(watchPosition).not.toHaveBeenCalled();
+      expect(startUpdates).not.toHaveBeenCalled();
       expect(screen.getByText("ATIVAR LOCALIZAÇÃO AO VIVO")).toBeOnTheScreen();
     });
 

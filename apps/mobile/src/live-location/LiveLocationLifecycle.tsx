@@ -10,8 +10,10 @@ import { resyncAllLiveLocation, stopAllLiveLocation } from "./LiveLocationContro
  *   autorizada (alerta ativo, sessão ACTIVE) e para as que não estão.
  * - Sessão encerrada (logout/expirada): para tudo localmente, imediatamente.
  *
- * Limitação (ADR 0007): apenas primeiro plano; em background o SO pode
- * suspender o watcher e as atualizações são retomadas ao voltar.
+ * Desde a Phase 13 (ADR 0015) o compartilhamento continua com a tela bloqueada
+ * e o app em segundo plano, por serviço em primeiro plano. A ressincronização
+ * ao voltar continua valendo: é ela que encerra sessões que o backend já não
+ * autoriza mais.
  */
 export function LiveLocationLifecycle(): null {
   const { status } = useAuth();
