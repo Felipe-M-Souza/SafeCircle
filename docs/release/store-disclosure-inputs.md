@@ -52,10 +52,20 @@ Bluetooth. `usesCleartextTraffic=false`; `allowBackup=false`.
 
 ## Localização em segundo plano — declaração
 
-**Não coleta localização em background.** Decisão explícita da Phase 12
-(Opção B, ADR 0013): a v1 é foreground-only; o app diz "A localização ao vivo é
-atualizada enquanto o SafeCircle está aberto." e as permissões de background
-estão bloqueadas na configuração nativa.
+**Não usa `ACCESS_BACKGROUND_LOCATION`** — a permissão continua em
+`blockedPermissions`, então **não** é preciso preencher o formulário de
+background location do Google Play nem gravar vídeo de demonstração.
+
+O compartilhamento continua com a tela bloqueada por meio de um **serviço em
+primeiro plano** (`FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_LOCATION`,
+tipo `location`), sempre iniciado por uma ação da pessoa com o app aberto e
+sempre acompanhado de notificação fixa. No iOS são background updates com o
+indicador azul visível, sob a permissão "Ao usar o app" (ADR 0015).
+
+Para o formulário de tipo de serviço em primeiro plano do Google Play: uso é
+"localização", justificativa é compartilhar a posição com um grupo de confiança
+escolhido pela pessoa durante um alerta de emergência ou trajeto seguro,
+enquanto ela mantiver o recurso ligado.
 
 ## Notificações push
 

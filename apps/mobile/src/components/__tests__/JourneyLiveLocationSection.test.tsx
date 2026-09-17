@@ -8,7 +8,9 @@ import { JourneyLiveLocationSection } from "../JourneyLiveLocationSection";
 const NOW = new Date("2026-09-12T21:00:00.000Z");
 const requestPermissions = jest.mocked(Location.requestForegroundPermissionsAsync);
 const servicesEnabled = jest.mocked(Location.hasServicesEnabledAsync);
-const watchPosition = jest.mocked(Location.watchPositionAsync);
+// Phase 13: o compartilhamento usa o stream do SO (serviço em primeiro plano),
+// não mais o watcher de primeiro plano.
+const startUpdates = jest.mocked(Location.startLocationUpdatesAsync);
 type PermissionResponse = Awaited<ReturnType<typeof Location.getForegroundPermissionsAsync>>;
 const granted = { status: "granted", canAskAgain: true } as PermissionResponse;
 
@@ -62,7 +64,7 @@ describe("JourneyLiveLocationSection", () => {
     resetLiveLocationRegistry();
     requestPermissions.mockResolvedValue(granted);
     servicesEnabled.mockResolvedValue(true);
-    watchPosition.mockResolvedValue({ remove: jest.fn() } as Location.LocationSubscription);
+    startUpdates.mockResolvedValue(undefined);
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -124,7 +126,7 @@ describe("JourneyLiveLocationSection", () => {
     );
     await fireEvent.press(await screen.findByText("ATIVAR LOCALIZAÇÃO AO VIVO"));
     await waitFor(() => expect(api.startJourneyLiveLocation).toHaveBeenCalledWith("journey-1"));
-    expect(watchPosition).toHaveBeenCalledTimes(1);
+    expect(startUpdates).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Ativa")).toBeOnTheScreen();
   });
 });

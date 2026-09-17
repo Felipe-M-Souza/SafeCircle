@@ -49,7 +49,7 @@ Legenda de colunas: A = Android emulador atual · A-1 = Android versão anterior
 | 3.2 | Permitir "enquanto usa" → posição capturada                                   | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 | 3.3 | Negar → SOS **ainda é enviado** (sem localização); UI informa                 | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 | 3.4 | Negado permanentemente → orientação para Configurações; SOS continua possível | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
-| 3.5 | O sistema **não** oferece "Sempre permitir" (sem background)                  | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 3.5 | O sistema **não** pede "Permitir o tempo todo" — só "Ao usar o app"           | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 
 ## 4. GPS (coordenadas sintéticas)
 
@@ -62,14 +62,19 @@ Legenda de colunas: A = Android emulador atual · A-1 = Android versão anterior
 | 4.5 | Sem atualização por >1 min → indicador de posição desatualizada | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 | 4.6 | Parar compartilhamento → membro vê "encerrado"; coleta cessa    | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 
-## 5. Foreground-only (decisão da v1)
+## 5. Tela bloqueada e segundo plano (ADR 0015)
 
-| #   | Teste                                                                              | A            | A-1          | AF           | iS           | iF           |
-| --- | ---------------------------------------------------------------------------------- | ------------ | ------------ | ------------ | ------------ | ------------ |
-| 5.1 | UI diz que a localização é atualizada enquanto o app está aberto                   | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
-| 5.2 | App em segundo plano → updates **param** (por design); ao voltar, retomam          | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
-| 5.3 | Tela bloqueada → idem                                                              | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
-| 5.4 | Nenhum indicador de localização em background do sistema aparece com o app fechado | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| #   | Teste                                                                        | A            | A-1          | AF           | iS           | iF           |
+| --- | ---------------------------------------------------------------------------- | ------------ | ------------ | ------------ | ------------ | ------------ |
+| 5.1 | UI diz que a localização é atualizada enquanto o app está aberto             | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.2 | App em segundo plano → updates **param** (por design); ao voltar, retomam    | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.3 | Tela bloqueada → idem                                                        | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.4 | Com o compartilhamento ligado, aparece a notificação fixa do SafeCircle      | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.5 | Tela bloqueada por 5 min: o outro aparelho continua vendo a posição avançar  | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.6 | App em segundo plano (outro app aberto): a posição continua atualizando      | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.7 | Parar o compartilhamento remove a notificação fixa imediatamente             | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.8 | Fechar o app (swipe) encerra o compartilhamento e a notificação              | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
+| 5.9 | Sem compartilhamento ativo, nenhuma notificação fixa e nenhum consumo de GPS | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED |
 
 ## 6. Push real (SOS, check-in vencido, trajeto atrasado — cada um)
 
