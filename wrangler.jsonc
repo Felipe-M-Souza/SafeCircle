@@ -1,0 +1,25 @@
+/**
+ * Publicação do site institucional (`apps/web`) no Cloudflare.
+ *
+ * É um Worker "só de assets": não há `main`, nenhum código roda por
+ * requisição, a Cloudflare apenas serve os arquivos estáticos a partir da
+ * borda. Foi o caminho escolhido porque contas novas da Cloudflare não
+ * oferecem mais o fluxo clássico do Pages — o painel unificou tudo em Workers.
+ *
+ * O `_headers` dentro de `apps/web` continua valendo: é lido pela mesma
+ * infraestrutura de assets e aplica a CSP e os demais cabeçalhos.
+ *
+ * Nada aqui é segredo. O site não tem variável de ambiente nem credencial:
+ * é HTML, CSS e imagens.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "safecircle-site",
+  "compatibility_date": "2026-09-17",
+  "assets": {
+    "directory": "./apps/web",
+    // Caminho inexistente devolve a 404.html do próprio site, com o layout
+    // certo, em vez da página genérica da Cloudflare.
+    "not_found_handling": "404-page"
+  }
+}

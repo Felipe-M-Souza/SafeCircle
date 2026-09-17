@@ -78,5 +78,6 @@ deixou de dizer "só em primeiro plano".
 
 ## Publicação
 
-Cloudflare Pages, conectado ao repositório. Detalhes em
-`docs/release/site-institucional.md`.
+Cloudflare, conectado ao repositório, por um Worker só de assets declarado em
+`wrangler.jsonc` na raiz — contas novas não oferecem mais o fluxo clássico do
+Pages. Passo a passo em `docs/release/site-institucional.md`.
