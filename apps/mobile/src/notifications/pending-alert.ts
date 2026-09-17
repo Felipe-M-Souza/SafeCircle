@@ -10,7 +10,9 @@
 export type PendingTarget =
   | { kind: "alert"; alertId: string }
   | { kind: "checkin"; checkinId: string }
-  | { kind: "journey"; journeyId: string };
+  | { kind: "journey"; journeyId: string }
+  /** Convite: a lista é a tela útil; o id serve para destacar/validar depois. */
+  | { kind: "invitations"; invitationId: string };
 
 type TargetListener = (target: PendingTarget) => void;
 
@@ -34,6 +36,10 @@ export function openCheckinFromNotification(checkinId: string): void {
 
 export function openJourneyFromNotification(journeyId: string): void {
   publish({ kind: "journey", journeyId });
+}
+
+export function openInvitationsFromNotification(invitationId: string): void {
+  publish({ kind: "invitations", invitationId });
 }
 
 /** Devolve e limpa a intenção pendente (qualquer tipo). */

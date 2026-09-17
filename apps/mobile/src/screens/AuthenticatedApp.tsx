@@ -24,6 +24,7 @@ import { DeleteAccountScreen } from "./account/DeleteAccountScreen";
 function screenFor(target: PendingTarget): Screen {
   if (target.kind === "alert") return { name: "alertDetails", alertId: target.alertId };
   if (target.kind === "journey") return { name: "journeyDetails", journeyId: target.journeyId };
+  if (target.kind === "invitations") return { name: "invitations" };
   return { name: "checkinDetails", checkinId: target.checkinId };
 }
 

@@ -164,8 +164,20 @@ export interface JourneyNotificationData {
   groupId?: string;
 }
 
+// Phase 13 — convite para grupo de confiança
+export const GROUP_INVITATION_NOTIFICATION_TYPE = "GROUP_INVITATION";
+
+export interface InvitationNotificationData {
+  type: typeof GROUP_INVITATION_NOTIFICATION_TYPE;
+  invitationId: string;
+  groupId?: string;
+}
+
 export type NotificationData =
-  AlertNotificationData | CheckinNotificationData | JourneyNotificationData;
+  | AlertNotificationData
+  | CheckinNotificationData
+  | JourneyNotificationData
+  | InvitationNotificationData;
 
 /** Interpreta qualquer payload conhecido (alerta, check-in ou trajeto); IDs são referência. */
 export function parseNotificationData(data: unknown): NotificationData | null {
@@ -179,6 +191,16 @@ export function parseNotificationData(data: unknown): NotificationData | null {
     const parsed: CheckinNotificationData = {
       type: CHECKIN_OVERDUE_NOTIFICATION_TYPE,
       checkinId: record.checkinId,
+    };
+    if (typeof record.groupId === "string") parsed.groupId = record.groupId;
+    return parsed;
+  }
+
+  if (record.type === GROUP_INVITATION_NOTIFICATION_TYPE) {
+    if (typeof record.invitationId !== "string" || record.invitationId.length === 0) return null;
+    const parsed: InvitationNotificationData = {
+      type: GROUP_INVITATION_NOTIFICATION_TYPE,
+      invitationId: record.invitationId,
     };
     if (typeof record.groupId === "string") parsed.groupId = record.groupId;
     return parsed;
