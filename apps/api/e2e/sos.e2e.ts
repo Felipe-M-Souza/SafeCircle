@@ -13,6 +13,31 @@ const api = new E2eClient(inject("apiUrl"));
 const sql = postgres(inject("databaseUrl"), { max: 1 });
 
 describe("E2E SOS", () => {
+  it("cancelar alerta como o app faz: POST com Content-Type JSON e sem corpo", async () => {
+    // Achado em aparelho (2026-09-16): o fetch nativo manda o header em todo POST.
+    const ana = await api.register("Ana", uniqueEmail("ana"));
+    const groupId = await api.createGroupWith(ana, "Família", []);
+    const created = await api.call<{ id: string }>("POST", "/alerts", {
+      token: ana.accessToken,
+      body: { groupId, location: SYNTHETIC_POINT },
+      idempotencyKey: randomUUID(),
+    });
+    expect(created.status, JSON.stringify(created.json)).toBe(201);
+
+    const start = await fetch(`${api.baseUrl}/alerts/${created.json.id}/live-location/start`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${ana.accessToken}` },
+    });
+    expect(start.status).toBe(201);
+
+    const cancel = await fetch(`${api.baseUrl}/alerts/${created.json.id}/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${ana.accessToken}` },
+    });
+    expect(cancel.status).toBe(200);
+    expect(((await cancel.json()) as { status: string }).status).toBe("CANCELLED");
+  });
+
   it("fluxo completo entre dois aparelhos, com entrega pela outbox", async () => {
     const ana = await api.register("Ana", uniqueEmail("ana"));
     const bruno = await api.register("Bruno", uniqueEmail("bruno"));
