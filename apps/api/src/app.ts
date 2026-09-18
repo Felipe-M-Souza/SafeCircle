@@ -266,7 +266,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(outboxPlugin, {
       autoStart:
         options.outboxWorkerAutoStart ?? (config.outboxEnabled && config.nodeEnv !== "test"),
-      appDeepLink: config.appDeepLink,
       appSiteUrl: config.appSiteUrl,
       ...(config.emailReplyTo ? { emailReplyTo: config.emailReplyTo } : {}),
       pollIntervalMs: config.outboxPollIntervalMs,

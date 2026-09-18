@@ -98,7 +98,15 @@ explicitamente que nada acontece sem aceitar e que nenhum dado é compartilhado
 até lá.
 
 O e-mail não tem imagem remota, pixel de rastreamento nem link de terceiros. O
-único link é o deep link do próprio app (`APP_DEEP_LINK`, público, sem token).
+único link é o site do próprio SafeCircle (`APP_SITE_URL`, público, sem token).
+
+Ele já foi o deep link `safecircle://`, e isso se mostrou errado por dois
+motivos ao mesmo tempo (2026-09-18). Filtros de spam desconfiam de esquema fora
+de http(s) dentro de um `<a>`, e os primeiros convites foram para a lixeira. E o
+destino era inútil para quem recebe um convite, que quase por definição ainda
+não instalou o aplicativo. Mantê-lo como texto também não serviu: aparecia cru
+na caixa de entrada, e para quem já tem o app ele abre a tela inicial, que é
+exatamente o que as instruções do corpo já mandam fazer.
 
 ### 7. Log sem PII
 

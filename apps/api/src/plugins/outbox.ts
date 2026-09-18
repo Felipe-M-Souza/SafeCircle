@@ -12,7 +12,6 @@ export interface OutboxPluginOptions {
   /** Inicia o worker com o servidor (desligado nos testes, que chamam runOnce()). */
   autoStart: boolean;
   /** Deep link público do app, usado nos e-mails (Phase 13). */
-  appDeepLink: string;
   appSiteUrl: string;
   emailReplyTo?: string;
   pollIntervalMs?: number;
@@ -39,7 +38,6 @@ export const outboxPlugin = fp(
       pushProvider: app.pushProvider,
       emailProvider: app.emailProvider,
       realtime: app.realtime,
-      appDeepLink: options.appDeepLink,
       appSiteUrl: options.appSiteUrl,
       ...(options.emailReplyTo ? { emailReplyTo: options.emailReplyTo } : {}),
       log: app.log,

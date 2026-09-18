@@ -75,7 +75,7 @@ export function buildInvitationPushMessage(
 export function buildInvitationEmail(
   to: string,
   invitation: InvitationNotificationTarget,
-  options: { deepLink: string; siteUrl: string; replyTo?: string },
+  options: { siteUrl: string; replyTo?: string },
 ): EmailMessage {
   const who = firstName(invitation.invitedByName);
   const until = formatDate(invitation.expiresAt);
@@ -93,7 +93,6 @@ export function buildInvitationEmail(
     "3. Toque em Aceitar.",
     "",
     `Saiba mais sobre o SafeCircle: ${options.siteUrl}`,
-    `Se o app já estiver instalado, abra: ${options.deepLink}`,
     "",
     `O convite vale até ${until}. Depois disso, é preciso pedir um novo.`,
     "",
@@ -109,14 +108,12 @@ export function buildInvitationEmail(
     "<ol><li>Instale o SafeCircle e crie sua conta com este mesmo e-mail.</li>",
     '<li>Na tela inicial, toque em "Convites recebidos".</li>',
     "<li>Toque em Aceitar.</li></ol>",
-    // O único link clicável aponta para o site, em https.
-    //
-    // Quem recebe um convite normalmente ainda não tem o aplicativo, então um
-    // `<a href="safecircle://">` não leva a lugar nenhum — e filtros de spam
-    // desconfiam de esquema fora de http(s) dentro de um link. O deep link
-    // continua no corpo como texto, útil para quem já tem o app instalado.
+    // O único link é o site, em https. Nada de `safecircle://`, nem como link
+    // nem como texto: filtros de spam desconfiam de esquema fora de http(s), o
+    // destino é inútil para quem ainda não instalou — que é quem recebe
+    // convite — e para quem já tem o app ele abre a tela inicial, exatamente o
+    // que as instruções acima já mandam fazer. Era só ruído na tela.
     `<p><a href="${escapeHtml(options.siteUrl)}">Conheça o SafeCircle</a></p>`,
-    `<p style="color:#475569;font-size:14px">Já tem o aplicativo? Abra <code>${escapeHtml(options.deepLink)}</code></p>`,
     `<p>O convite vale até <strong>${escapeHtml(until)}</strong>. Depois disso, é preciso pedir um novo.</p>`,
     '<p style="color:#475569;font-size:14px">Se você não conhece quem convidou, ignore esta mensagem: nada acontece sem você aceitar, e nenhum dado seu é compartilhado até lá.</p>',
     "</div>",
