@@ -97,7 +97,18 @@ dados a mensagem é indistinguível de spam e ninguém aceita. O texto diz
 explicitamente que nada acontece sem aceitar e que nenhum dado é compartilhado
 até lá.
 
-O e-mail não tem imagem remota, pixel de rastreamento nem link de terceiros. O
+O e-mail carrega o logotipo, mas **nenhuma requisição sai do cliente ao abrir
+a mensagem**. A imagem viaja embutida, por CID, e não como uma `img` apontando
+para um servidor. A diferença não é estética: imagem remota informa ao emissor
+o instante da abertura e o endereço de rede de quem abriu. É um pixel de
+rastreamento mesmo quando ninguém pretendia rastrear, e contradiria o que a
+política de privacidade promete.
+
+O logotipo é gerado por `pnpm brand:assets` como módulo TypeScript, e não como
+arquivo solto, porque o `tsc` já copia `.ts` para o `dist`: um `.png` dentro de
+`src/` ficaria silenciosamente de fora da imagem da API.
+
+Não há pixel de rastreamento nem link de terceiros. O
 único link é o site do próprio SafeCircle (`APP_SITE_URL`, público, sem token).
 
 Ele já foi o deep link `safecircle://`, e isso se mostrou errado por dois

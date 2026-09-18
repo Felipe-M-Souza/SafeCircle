@@ -1,4 +1,10 @@
 import type { EmailMessage } from "../../infrastructure/email/email-provider.js";
+import {
+  EMAIL_LOGO_BASE64,
+  EMAIL_LOGO_CONTENT_ID,
+  EMAIL_LOGO_FILENAME,
+  EMAIL_LOGO_WIDTH,
+} from "../../infrastructure/email/logo.generated.js";
 import type { PushMessage } from "../../infrastructure/push/push-provider.js";
 
 /**
@@ -62,14 +68,19 @@ export function buildInvitationPushMessage(
 }
 
 /**
- * E-mail de convite. Texto puro sempre; HTML como conveniência. Sem imagens
- * remotas, sem rastreamento de abertura e sem link de terceiros — o único link
- * clicável é o site do próprio SafeCircle.
+ * E-mail de convite. Texto puro sempre; HTML como conveniência.
  *
- * O link já foi o deep link `safecircle://`, e isso custou os primeiros
- * convites: eles foram parar na lixeira. Duas razões, ambas evitáveis. Filtros
- * de spam desconfiam de esquema fora de http(s) dentro de um `<a>`, e o
- * destino era inútil para quem recebe convite, que quase por definição ainda
+ * Nenhuma requisição sai do cliente de e-mail ao abrir a mensagem. O logotipo
+ * viaja embutido, por CID, e não como `<img src="https://...">`. A diferença
+ * não é estética: imagem remota informa ao emissor o instante da abertura e o
+ * endereço de rede de quem abriu. É um pixel de rastreamento, mesmo quando
+ * ninguém pretendia rastrear, e contradiria o que a política de privacidade
+ * promete.
+ *
+ * O único link clicável é o site do próprio SafeCircle. Já foi o deep link
+ * `safecircle://`, e isso custou os primeiros convites: foram para a lixeira.
+ * Filtros de spam desconfiam de esquema fora de http(s) dentro de um `<a>`, e
+ * o destino era inútil para quem recebe convite, que quase por definição ainda
  * não instalou o aplicativo.
  */
 export function buildInvitationEmail(
@@ -101,7 +112,13 @@ export function buildInvitationEmail(
   ].join("\n");
 
   const html = [
-    '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.5;color:#0f172a">',
+    // O contêiner declara fundo e cor: sem isso, um cliente em tema escuro
+    // pinta o fundo de preto e o logotipo achatado sobre branco vira um
+    // retângulo claro flutuando no meio da mensagem.
+    '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.5;color:#0f172a;background:#ffffff;padding:8px">',
+    // Largura e altura no atributo, não só no estilo: cliente que bloqueia
+    // imagem reserva o espaço e mostra o `alt` em vez de quebrar o layout.
+    `<p style="margin:8px 0 20px"><img src="cid:${EMAIL_LOGO_CONTENT_ID}" alt="SafeCircle" width="${EMAIL_LOGO_WIDTH / 2}" style="width:${EMAIL_LOGO_WIDTH / 2}px;max-width:100%;height:auto;border:0" /></p>`,
     `<p><strong>${escapeHtml(who)}</strong> convidou você para o grupo de confiança <strong>${escapeHtml(invitation.groupName)}</strong> no SafeCircle.</p>`,
     "<p>O SafeCircle é um aplicativo de segurança pessoal: em um grupo de confiança, você pode pedir ajuda rapidamente a quem escolheu e avisar que chegou bem.</p>",
     "<p><strong>Para aceitar:</strong></p>",
@@ -119,9 +136,17 @@ export function buildInvitationEmail(
     "</div>",
   ].join("");
 
+  const inlineImages = [
+    {
+      filename: EMAIL_LOGO_FILENAME,
+      base64: EMAIL_LOGO_BASE64,
+      contentId: EMAIL_LOGO_CONTENT_ID,
+    },
+  ];
+
   return options.replyTo
-    ? { to, subject, text, html, replyTo: options.replyTo }
-    : { to, subject, text, html };
+    ? { to, subject, text, html, inlineImages, replyTo: options.replyTo }
+    : { to, subject, text, html, inlineImages };
 }
 
 /** Escapa o que vem do banco (nome de grupo e de pessoa) antes de virar HTML. */

@@ -66,6 +66,11 @@ export class ResendApiEmailProvider implements EmailProvider {
           from: this.from,
           to: [message.to],
           reply_to: message.replyTo,
+          attachments: message.inlineImages?.map((image) => ({
+            filename: image.filename,
+            content: image.base64,
+            content_id: image.contentId,
+          })),
           subject: message.subject,
           text: message.text,
           html: message.html,

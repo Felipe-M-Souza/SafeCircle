@@ -157,6 +157,43 @@ async function main() {
     .png({ compressionLevel: 9 })
     .toFile(resolve(outDir, "logo.png"));
 
+  // Logo do e-mail: vai embutido na mensagem, não buscado de um servidor.
+  //
+  // Imagem remota em e-mail revela quando a mensagem foi aberta e de qual
+  // endereço de rede — é tecnicamente um pixel de rastreamento, mesmo sem a
+  // intenção. Embutir por CID evita a requisição inteira.
+  //
+  // Sai como módulo TypeScript, e não como arquivo solto, porque o `tsc` já
+  // copia `.ts` para o `dist` e a imagem da API não precisa de passo extra de
+  // cópia. Um `.png` dentro de `src/` seria silenciosamente deixado para trás.
+  //
+  // Achatado sobre branco de propósito: a palavra "Safe" é azul-marinho e
+  // sumiria se o cliente de e-mail renderizasse o fundo escuro.
+  const emailLogo = await sharp(trimmed)
+    .resize({ width: 360 })
+    .flatten({ background: "#ffffff" })
+    .png({ compressionLevel: 9, palette: true })
+    .toBuffer();
+  const emailLogoPath = resolve(root, "apps/api/src/infrastructure/email/logo.generated.ts");
+  const emailLogoModule = [
+    "// GERADO POR `pnpm brand:assets` — NÃO EDITE À MÃO.",
+    "//",
+    "// O logotipo do e-mail de convite, embutido na própria mensagem por CID.",
+    "// Ver o porquê em `scripts/brand-assets.mjs` e no ADR 0014.",
+    "",
+    `export const EMAIL_LOGO_WIDTH = 360;`,
+    `export const EMAIL_LOGO_FILENAME = "safecircle.png";`,
+    `export const EMAIL_LOGO_CONTENT_ID = "safecircle-logo";`,
+    `export const EMAIL_LOGO_BASE64 =`,
+    `  "${emailLogo.toString("base64")}";`,
+    "",
+  ].join("\n");
+  const tsConfig = (await prettier.resolveConfig(emailLogoPath)) ?? {};
+  await writeFile(
+    emailLogoPath,
+    await prettier.format(emailLogoModule, { ...tsConfig, parser: "typescript" }),
+  );
+
   // Variante para fundo escuro: no logotipo original a palavra "Safe" é azul-
   // marinho e desaparece contra o fundo do app e do site. Só o texto é
   // reclareado — a marca (o pino, à esquerda) fica intacta, porque ela já tem
@@ -206,6 +243,7 @@ async function main() {
       "logo.png",
       "logo-dark.png",
       "favicon.png",
+      "apps/api/src/infrastructure/email/logo.generated.ts",
     ],
   };
   // Formatado com o Prettier do repositório: `pnpm format:check` cobre este arquivo.
