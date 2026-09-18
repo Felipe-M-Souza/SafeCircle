@@ -57,7 +57,6 @@ export interface OutboxWorkerOptions {
   emailProvider: EmailProvider;
   realtime: RealtimePublisher;
   /** Deep link público do app, usado nos e-mails (Phase 13). */
-  appDeepLink: string;
   appSiteUrl: string;
   emailReplyTo?: string;
   log: FastifyBaseLogger;
@@ -227,7 +226,6 @@ export class OutboxWorker {
           emailProvider: this.options.emailProvider,
           realtime: this.options.realtime,
           log: this.options.log,
-          appDeepLink: this.options.appDeepLink,
           appSiteUrl: this.options.appSiteUrl,
           ...(this.options.emailReplyTo ? { emailReplyTo: this.options.emailReplyTo } : {}),
         },

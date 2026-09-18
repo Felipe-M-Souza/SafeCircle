@@ -32,8 +32,6 @@ export interface OutboxHandlerContext {
   emailProvider: EmailProvider;
   realtime: RealtimePublisher;
   log: FastifyBaseLogger;
-  /** Deep link do app usado nos e-mails (Phase 13); público, sem token. */
-  appDeepLink: string;
   appSiteUrl: string;
   emailReplyTo?: string;
   /** Id do evento da outbox: correlação, dedupe realtime e idempotência do audit. */
@@ -46,7 +44,6 @@ export interface HandlerDependencies {
   emailProvider: EmailProvider;
   realtime: RealtimePublisher;
   log: FastifyBaseLogger;
-  appDeepLink: string;
   appSiteUrl: string;
   emailReplyTo?: string;
 }

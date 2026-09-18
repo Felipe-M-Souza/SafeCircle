@@ -12,6 +12,15 @@ import { createHash } from "node:crypto";
  * correlacionar uma entrega em log use `fingerprintEmail`.
  */
 
+export interface InlineImage {
+  /** Nome do arquivo apresentado ao cliente de e-mail. */
+  filename: string;
+  /** Conteúdo em base64, sem prefixo de data URI. */
+  base64: string;
+  /** Referenciado no HTML como `cid:<contentId>`. */
+  contentId: string;
+}
+
 export interface EmailMessage {
   /** Destinatário (PII: nunca logar). */
   to: string;
@@ -29,6 +38,16 @@ export interface EmailMessage {
    * resolve os dois problemas.
    */
   replyTo?: string;
+  /**
+   * Imagens embutidas na própria mensagem, referenciadas no HTML por
+   * `cid:<contentId>`.
+   *
+   * É embutido, e não buscado de um servidor, de propósito. Uma `<img>` remota
+   * revela ao emissor quando a mensagem foi aberta e de qual endereço de rede:
+   * é um pixel de rastreamento, mesmo quando ninguém pretendia rastrear. Ver o
+   * ADR 0014.
+   */
+  inlineImages?: InlineImage[];
   /**
    * Chave de idempotência (id do evento da outbox). A entrega é at-least-once;
    * com ela o provedor descarta a repetição em vez de mandar o convite de novo.

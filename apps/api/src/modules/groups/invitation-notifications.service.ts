@@ -1,4 +1,10 @@
 import type { EmailMessage } from "../../infrastructure/email/email-provider.js";
+import {
+  EMAIL_LOGO_BASE64,
+  EMAIL_LOGO_CONTENT_ID,
+  EMAIL_LOGO_FILENAME,
+  EMAIL_LOGO_WIDTH,
+} from "../../infrastructure/email/logo.generated.js";
 import type { PushMessage } from "../../infrastructure/push/push-provider.js";
 
 /**
@@ -62,20 +68,25 @@ export function buildInvitationPushMessage(
 }
 
 /**
- * E-mail de convite. Texto puro sempre; HTML como conveniência. Sem imagens
- * remotas, sem rastreamento de abertura e sem link de terceiros — o único link
- * clicável é o site do próprio SafeCircle.
+ * E-mail de convite. Texto puro sempre; HTML como conveniência.
  *
- * O link já foi o deep link `safecircle://`, e isso custou os primeiros
- * convites: eles foram parar na lixeira. Duas razões, ambas evitáveis. Filtros
- * de spam desconfiam de esquema fora de http(s) dentro de um `<a>`, e o
- * destino era inútil para quem recebe convite, que quase por definição ainda
+ * Nenhuma requisição sai do cliente de e-mail ao abrir a mensagem. O logotipo
+ * viaja embutido, por CID, e não como `<img src="https://...">`. A diferença
+ * não é estética: imagem remota informa ao emissor o instante da abertura e o
+ * endereço de rede de quem abriu. É um pixel de rastreamento, mesmo quando
+ * ninguém pretendia rastrear, e contradiria o que a política de privacidade
+ * promete.
+ *
+ * O único link clicável é o site do próprio SafeCircle. Já foi o deep link
+ * `safecircle://`, e isso custou os primeiros convites: foram para a lixeira.
+ * Filtros de spam desconfiam de esquema fora de http(s) dentro de um `<a>`, e
+ * o destino era inútil para quem recebe convite, que quase por definição ainda
  * não instalou o aplicativo.
  */
 export function buildInvitationEmail(
   to: string,
   invitation: InvitationNotificationTarget,
-  options: { deepLink: string; siteUrl: string; replyTo?: string },
+  options: { siteUrl: string; replyTo?: string },
 ): EmailMessage {
   const who = firstName(invitation.invitedByName);
   const until = formatDate(invitation.expiresAt);
@@ -93,7 +104,6 @@ export function buildInvitationEmail(
     "3. Toque em Aceitar.",
     "",
     `Saiba mais sobre o SafeCircle: ${options.siteUrl}`,
-    `Se o app já estiver instalado, abra: ${options.deepLink}`,
     "",
     `O convite vale até ${until}. Depois disso, é preciso pedir um novo.`,
     "",
@@ -102,29 +112,41 @@ export function buildInvitationEmail(
   ].join("\n");
 
   const html = [
-    '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.5;color:#0f172a">',
+    // O contêiner declara fundo e cor: sem isso, um cliente em tema escuro
+    // pinta o fundo de preto e o logotipo achatado sobre branco vira um
+    // retângulo claro flutuando no meio da mensagem.
+    '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.5;color:#0f172a;background:#ffffff;padding:8px">',
+    // Largura e altura no atributo, não só no estilo: cliente que bloqueia
+    // imagem reserva o espaço e mostra o `alt` em vez de quebrar o layout.
+    `<p style="margin:8px 0 20px"><img src="cid:${EMAIL_LOGO_CONTENT_ID}" alt="SafeCircle" width="${EMAIL_LOGO_WIDTH / 2}" style="width:${EMAIL_LOGO_WIDTH / 2}px;max-width:100%;height:auto;border:0" /></p>`,
     `<p><strong>${escapeHtml(who)}</strong> convidou você para o grupo de confiança <strong>${escapeHtml(invitation.groupName)}</strong> no SafeCircle.</p>`,
     "<p>O SafeCircle é um aplicativo de segurança pessoal: em um grupo de confiança, você pode pedir ajuda rapidamente a quem escolheu e avisar que chegou bem.</p>",
     "<p><strong>Para aceitar:</strong></p>",
     "<ol><li>Instale o SafeCircle e crie sua conta com este mesmo e-mail.</li>",
     '<li>Na tela inicial, toque em "Convites recebidos".</li>',
     "<li>Toque em Aceitar.</li></ol>",
-    // O único link clicável aponta para o site, em https.
-    //
-    // Quem recebe um convite normalmente ainda não tem o aplicativo, então um
-    // `<a href="safecircle://">` não leva a lugar nenhum — e filtros de spam
-    // desconfiam de esquema fora de http(s) dentro de um link. O deep link
-    // continua no corpo como texto, útil para quem já tem o app instalado.
+    // O único link é o site, em https. Nada de `safecircle://`, nem como link
+    // nem como texto: filtros de spam desconfiam de esquema fora de http(s), o
+    // destino é inútil para quem ainda não instalou — que é quem recebe
+    // convite — e para quem já tem o app ele abre a tela inicial, exatamente o
+    // que as instruções acima já mandam fazer. Era só ruído na tela.
     `<p><a href="${escapeHtml(options.siteUrl)}">Conheça o SafeCircle</a></p>`,
-    `<p style="color:#475569;font-size:14px">Já tem o aplicativo? Abra <code>${escapeHtml(options.deepLink)}</code></p>`,
     `<p>O convite vale até <strong>${escapeHtml(until)}</strong>. Depois disso, é preciso pedir um novo.</p>`,
     '<p style="color:#475569;font-size:14px">Se você não conhece quem convidou, ignore esta mensagem: nada acontece sem você aceitar, e nenhum dado seu é compartilhado até lá.</p>',
     "</div>",
   ].join("");
 
+  const inlineImages = [
+    {
+      filename: EMAIL_LOGO_FILENAME,
+      base64: EMAIL_LOGO_BASE64,
+      contentId: EMAIL_LOGO_CONTENT_ID,
+    },
+  ];
+
   return options.replyTo
-    ? { to, subject, text, html, replyTo: options.replyTo }
-    : { to, subject, text, html };
+    ? { to, subject, text, html, inlineImages, replyTo: options.replyTo }
+    : { to, subject, text, html, inlineImages };
 }
 
 /** Escapa o que vem do banco (nome de grupo e de pessoa) antes de virar HTML. */

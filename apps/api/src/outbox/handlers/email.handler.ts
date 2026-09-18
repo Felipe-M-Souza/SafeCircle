@@ -72,7 +72,6 @@ export async function handleEmailEvent(
       expiresAt: row.expiresAt,
     },
     {
-      deepLink: ctx.appDeepLink,
       siteUrl: ctx.appSiteUrl,
       ...(ctx.emailReplyTo ? { replyTo: ctx.emailReplyTo } : {}),
     },

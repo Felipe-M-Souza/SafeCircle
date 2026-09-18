@@ -109,8 +109,6 @@ const envSchema = z
       emptyToUndefined,
       z.string().min(3).default("SafeCircle <nao-responda@safecircle.invalid>"),
     ),
-    /** Deep link público usado nos e-mails; sem token, sem identificador pessoal. */
-    APP_DEEP_LINK: z.preprocess(emptyToUndefined, z.string().min(3).default("safecircle://")),
     /**
      * Endereço do site, usado como destino clicável dos e-mails.
      *
@@ -259,7 +257,6 @@ export interface Config {
     password: string | undefined;
   };
   emailFrom: string;
-  appDeepLink: string;
   appSiteUrl: string;
   emailReplyTo?: string;
   metricsEnabled: boolean;
@@ -330,7 +327,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
       password: env.SMTP_PASSWORD,
     },
     emailFrom: env.EMAIL_FROM,
-    appDeepLink: env.APP_DEEP_LINK,
     appSiteUrl: env.APP_SITE_URL,
     ...(env.EMAIL_REPLY_TO ? { emailReplyTo: env.EMAIL_REPLY_TO } : {}),
     metricsEnabled: env.METRICS_ENABLED,

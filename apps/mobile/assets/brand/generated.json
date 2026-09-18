@@ -10,6 +10,7 @@
     "splash-icon.png",
     "logo.png",
     "logo-dark.png",
-    "favicon.png"
+    "favicon.png",
+    "apps/api/src/infrastructure/email/logo.generated.ts"
   ]
 }

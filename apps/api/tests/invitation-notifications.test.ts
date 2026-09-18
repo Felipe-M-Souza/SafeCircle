@@ -63,13 +63,39 @@ describe("Convite — aviso por e-mail", () => {
     expect(message.subject).toContain("Família");
     expect(message.subject).toContain("Ana");
     expect(message.text).toContain("Convites recebidos");
-    expect(message.text).toContain("safecircle://");
 
-    // O único link clicável precisa ser https. Um `<a href="safecircle://">`
-    // não leva a lugar nenhum para quem ainda não tem o app — que é justamente
-    // quem recebe convite — e faz o e-mail cair em spam.
+    // O único link precisa ser https. Um `<a href="safecircle://">` não leva a
+    // lugar nenhum para quem ainda não tem o app — que é justamente quem recebe
+    // convite — e derruba o e-mail para o spam. O esquema não aparece nem como
+    // texto: na caixa de entrada isso é ruído visível.
     expect(message.html ?? "").toContain('<a href="https://');
-    expect(message.html ?? "").not.toContain('<a href="safecircle://');
+    expect(message.html ?? "").not.toContain("safecircle://");
+    expect(message.text).not.toContain("safecircle://");
+  });
+
+  it("o logotipo vai embutido, e nenhuma requisição sai ao abrir a mensagem", async () => {
+    await invite(owner, groupId, "convidado@example.com");
+    await drainOutbox(app);
+    const message = email.messages[0]!;
+    const html = message.html ?? "";
+
+    // Embutido por CID e referenciado por `cid:`. Uma `<img>` remota informaria
+    // ao emissor o instante da abertura e o endereço de rede de quem abriu —
+    // um pixel de rastreamento, mesmo sem a intenção.
+    expect(message.inlineImages).toHaveLength(1);
+    const logo = message.inlineImages![0]!;
+    expect(html).toContain(`src="cid:${logo.contentId}"`);
+    expect(html).toContain('alt="SafeCircle"');
+
+    // A única origem externa tolerada é o link para o próprio site, que exige
+    // um clique. Qualquer `src` apontando para fora é carregamento automático.
+    expect(html).not.toMatch(/<img[^>]+src="https?:/);
+
+    // O conteúdo precisa ser um PNG de verdade: um base64 corrompido não
+    // quebraria nenhum teste, só apareceria como imagem vazia na caixa alheia.
+    const bytes = Buffer.from(logo.base64, "base64");
+    expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(bytes.byteLength).toBeLessThan(40 * 1024);
 
     // Só o primeiro nome de quem convidou; o sobrenome não vai na mensagem.
     expect(message.text).not.toContain("Souza");
