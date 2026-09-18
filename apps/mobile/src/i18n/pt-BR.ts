@@ -87,6 +87,15 @@ export const ptBR = {
     blockedBody: "Ative as notificações nas configurações do aparelho para receber alertas.",
     openSettings: "Abrir configurações",
     unavailable: "Notificações push não estão disponíveis nesta plataforma.",
+    // Permissão concedida não basta: o aparelho também precisa se cadastrar no
+    // servidor. Quando isso falha, dizer "Ativadas" é mentira, e numa função de
+    // emergência a pessoa só descobriria na hora em que precisasse.
+    failedTitle: "Notificações não estão funcionando",
+    failedTokenBody:
+      "A permissão está concedida, mas este aparelho não conseguiu se registrar para receber avisos. Você não será notificado quando alguém do seu grupo pedir ajuda.",
+    failedApiBody:
+      "A permissão está concedida, mas não foi possível falar com o servidor para registrar este aparelho. Verifique sua conexão.",
+    failedDetailLabel: "Detalhe técnico, para o suporte",
   },
   acknowledgements: {
     sectionTitle: "Respostas do grupo",

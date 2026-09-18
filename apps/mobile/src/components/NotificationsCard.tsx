@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { strings } from "../i18n/pt-BR";
+import { isRegistered } from "../notifications/device-registration";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { colors } from "../theme/colors";
 import { PrimaryButton } from "./PrimaryButton";
@@ -32,15 +33,49 @@ export function NotificationsCard(): React.JSX.Element | null {
     }
   }
 
-  const { permission } = notifications;
+  async function handleRetry() {
+    setBusy(true);
+    try {
+      await notifications!.retryRegistration();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const { permission, registration } = notifications;
 
   if (permission === "granted") {
+    // Enquanto a primeira tentativa não termina, não afirmamos nada.
+    const pending = registration === null;
+
+    if (!pending && !isRegistered(registration)) {
+      const isApi = registration.status === "api";
+      const detail = registration.status === "token" || isApi ? registration.detail : undefined;
+      return (
+        <View style={styles.card} accessibilityRole="alert">
+          <Text style={styles.title}>{t.failedTitle}</Text>
+          <Text style={styles.body}>{isApi ? t.failedApiBody : t.failedTokenBody}</Text>
+          {detail ? (
+            <Text style={styles.detail} selectable>
+              {t.failedDetailLabel}: {detail}
+            </Text>
+          ) : null}
+          <PrimaryButton label={t.tryAgain} onPress={() => void handleRetry()} loading={busy} />
+        </View>
+      );
+    }
+
     return (
       <View style={styles.card} accessibilityRole="summary">
         <Text style={styles.title}>{t.title}</Text>
         <Text style={styles.body}>{t.description}</Text>
         <Text style={styles.status}>
-          {t.statusLabel}: <Text style={styles.statusOn}>{t.statusEnabled}</Text>
+          {t.statusLabel}:{" "}
+          {pending ? (
+            <Text style={styles.status}>…</Text>
+          ) : (
+            <Text style={styles.statusOn}>{t.statusEnabled}</Text>
+          )}
         </Text>
       </View>
     );
@@ -100,6 +135,7 @@ const styles = StyleSheet.create({
   title: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },
   body: { color: colors.mutedText, fontSize: 14, lineHeight: 20 },
   status: { color: colors.mutedText, fontSize: 14 },
+  detail: { color: colors.mutedText, fontSize: 12, lineHeight: 17, fontStyle: "italic" },
   statusOn: { color: colors.accent, fontWeight: "700" },
   link: { color: colors.mutedText, fontSize: 14, fontWeight: "600", textAlign: "center" },
 });

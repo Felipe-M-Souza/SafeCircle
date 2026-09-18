@@ -111,6 +111,20 @@ const envSchema = z
     ),
     /** Deep link público usado nos e-mails; sem token, sem identificador pessoal. */
     APP_DEEP_LINK: z.preprocess(emptyToUndefined, z.string().min(3).default("safecircle://")),
+    /**
+     * Endereço do site, usado como destino clicável dos e-mails.
+     *
+     * O convite chega para quem normalmente **não** tem o aplicativo, então um
+     * link `safecircle://` não leva a lugar nenhum. Pior: esquema fora de
+     * http(s) dentro de um `<a>` é sinal de spam para vários filtros, e os
+     * primeiros convites foram parar na lixeira.
+     */
+    APP_SITE_URL: z.preprocess(
+      emptyToUndefined,
+      z.string().url().default("https://safecircle.softechconsulting.com.br"),
+    ),
+    /** Para onde vão as respostas; o remetente é uma caixa que não existe. */
+    EMAIL_REPLY_TO: z.preprocess(emptyToUndefined, z.string().email().optional()),
 
     // Observabilidade (Phase 9).
     // /metrics é desligado por padrão: só existe quando explicitamente habilitado.
@@ -246,6 +260,8 @@ export interface Config {
   };
   emailFrom: string;
   appDeepLink: string;
+  appSiteUrl: string;
+  emailReplyTo?: string;
   metricsEnabled: boolean;
   metricsToken?: string;
   appVersion?: string;
@@ -315,6 +331,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Config {
     },
     emailFrom: env.EMAIL_FROM,
     appDeepLink: env.APP_DEEP_LINK,
+    appSiteUrl: env.APP_SITE_URL,
+    ...(env.EMAIL_REPLY_TO ? { emailReplyTo: env.EMAIL_REPLY_TO } : {}),
     metricsEnabled: env.METRICS_ENABLED,
     metricsToken: env.METRICS_TOKEN,
     appVersion: env.APP_VERSION,

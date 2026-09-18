@@ -67,7 +67,7 @@ describe("notifications.service — permissão", () => {
       expect(getPushPlatform()).toBeNull();
       expect(await getPermissionStatus()).toBe("unavailable");
       expect(await requestPermission()).toBe("unavailable");
-      expect(await getExpoPushToken()).toBeNull();
+      expect(await getExpoPushToken()).toEqual({ ok: false, reason: "unsupported" });
       expect(getPermissions).not.toHaveBeenCalled();
       expect(getToken).not.toHaveBeenCalled();
     } finally {
@@ -86,7 +86,10 @@ describe("notifications.service — Expo Push Token", () => {
 
   it("obtém o token sem projectId quando não configurado", async () => {
     getToken.mockResolvedValueOnce({ type: "expo", data: "ExponentPushToken[abc-sintetico-1]" });
-    expect(await getExpoPushToken()).toBe("ExponentPushToken[abc-sintetico-1]");
+    expect(await getExpoPushToken()).toEqual({
+      ok: true,
+      token: "ExponentPushToken[abc-sintetico-1]",
+    });
     expect(getToken).toHaveBeenCalledWith(undefined);
     expect(getExpoProjectId()).toBeUndefined();
   });
@@ -100,11 +103,18 @@ describe("notifications.service — Expo Push Token", () => {
     expect(getToken).toHaveBeenCalledWith({ projectId: "projeto-publico" });
   });
 
-  it("erro ou resposta vazia → null (nunca lança)", async () => {
+  it("nunca lança, e devolve o motivo em vez de engolir o erro", async () => {
+    // A mensagem original é a única pista de que falta credencial do Firebase.
+    // Descartá-la foi o que deixou o push quebrado em produção sem sintoma.
     getToken.mockRejectedValueOnce(new Error("sem projectId"));
-    expect(await getExpoPushToken()).toBeNull();
+    expect(await getExpoPushToken()).toEqual({
+      ok: false,
+      reason: "provider",
+      detail: "sem projectId",
+    });
+
     getToken.mockResolvedValueOnce({ type: "expo", data: "" });
-    expect(await getExpoPushToken()).toBeNull();
+    expect(await getExpoPushToken()).toEqual({ ok: false, reason: "empty" });
   });
 });
 

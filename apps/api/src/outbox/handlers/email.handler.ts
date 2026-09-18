@@ -71,7 +71,11 @@ export async function handleEmailEvent(
       invitedByName: row.invitedByName,
       expiresAt: row.expiresAt,
     },
-    { deepLink: ctx.appDeepLink },
+    {
+      deepLink: ctx.appDeepLink,
+      siteUrl: ctx.appSiteUrl,
+      ...(ctx.emailReplyTo ? { replyTo: ctx.emailReplyTo } : {}),
+    },
   );
   // Reprocessamento da outbox não pode virar convite duplicado.
   message.idempotencyKey = ctx.eventId;

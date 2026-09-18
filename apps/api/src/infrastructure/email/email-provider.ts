@@ -21,6 +21,15 @@ export interface EmailMessage {
   /** Corpo HTML opcional. */
   html?: string;
   /**
+   * Endereço de resposta.
+   *
+   * O remetente é `nao-responda@`, que não tem caixa. Sem um `Reply-To`, quem
+   * responde escreve para o vazio, e filtros de spam tratam remetente sem
+   * resposta possível como sinal de envio em massa. Apontar para o suporte
+   * resolve os dois problemas.
+   */
+  replyTo?: string;
+  /**
    * Chave de idempotência (id do evento da outbox). A entrega é at-least-once;
    * com ela o provedor descarta a repetição em vez de mandar o convite de novo.
    */

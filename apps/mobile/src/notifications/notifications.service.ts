@@ -114,15 +114,45 @@ export function getExpoProjectId(): string | undefined {
   return fromExtra ?? Constants.easConfig?.projectId ?? undefined;
 }
 
-/** Obtém o Expo Push Token; `null` quando indisponível (simulador, web, erro). */
-export async function getExpoPushToken(): Promise<string | null> {
-  if (!isPushSupported()) return null;
+/**
+ * Resultado da obtenção do token. O erro faz parte do retorno de propósito.
+ *
+ * A versão anterior devolvia `string | null` e engolia a exceção. O efeito
+ * disso em produção foi caro: nenhum aparelho chegou a se cadastrar, o app
+ * continuou exibindo "Notificações: ativadas" porque a permissão estava
+ * concedida, e a única pista existia nos registros do servidor — a ausência de
+ * qualquer chamada de cadastro. Falha silenciosa em caminho de emergência é
+ * pior que falha barulhenta.
+ */
+export type PushTokenResult =
+  | { readonly ok: true; readonly token: string }
+  | { readonly ok: false; readonly reason: PushTokenFailure; readonly detail?: string };
+
+export type PushTokenFailure =
+  /** Web ou simulador: não há push nesta plataforma. */
+  | "unsupported"
+  /**
+   * O serviço da Expo recusou. No Android autônomo a causa quase sempre é a
+   * falta das credenciais do Firebase no projeto EAS, e a mensagem original
+   * fica em `detail`.
+   */
+  | "provider"
+  /** A chamada respondeu, mas sem token. */
+  | "empty";
+
+/** Obtém o Expo Push Token, preservando o motivo quando não vier. */
+export async function getExpoPushToken(): Promise<PushTokenResult> {
+  if (!isPushSupported()) return { ok: false, reason: "unsupported" };
   try {
     const projectId = getExpoProjectId();
     const result = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-    return result.data ? result.data : null;
-  } catch {
-    return null;
+    if (!result.data) return { ok: false, reason: "empty" };
+    return { ok: true, token: result.data };
+  } catch (error) {
+    // A mensagem da Expo é técnica e em inglês, então não vai para a tela.
+    // Serve para o relato de suporte, onde a tradução atrapalharia.
+    const detail = error instanceof Error ? error.message : undefined;
+    return detail ? { ok: false, reason: "provider", detail } : { ok: false, reason: "provider" };
   }
 }
 
