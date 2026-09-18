@@ -86,7 +86,9 @@
     {
       "nome": "_acme-challenge",
       "tipo": "TXT",
-      "valor": ["e9sjgAE9lB1GVHBPdfP8W1lRgJZpTEnGgLmBtUtY5nM"]
+      "valor": ["e9sjgAE9lB1GVHBPdfP8W1lRgJZpTEnGgLmBtUtY5nM"],
+      "modo": "contem",
+      "nota": "A Cloudflare cria e remove tokens aqui a cada emissao de certificado. So exigimos que o valor original continue presente."
     },
     {
       "nome": "_carddavs._tcp",
