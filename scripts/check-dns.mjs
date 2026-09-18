@@ -62,13 +62,23 @@ for (const esperado of retrato.registros) {
 
   // Comparação exata: um DKIM com um caractere a menos falha silenciosamente
   // na entrega, então "parecido" não serve.
-  const igual = JSON.stringify(obtido) === JSON.stringify(esperado.valor);
+  //
+  // A exceção é `_acme-challenge`, onde a Cloudflare cria e remove tokens a
+  // cada emissão de certificado. Ali basta que o valor original continue
+  // presente; exigir igualdade daria alarme falso a cada renovação.
+  const igual =
+    esperado.modo === "contem"
+      ? esperado.valor.every((v) => obtido.includes(v))
+      : JSON.stringify(obtido) === JSON.stringify(esperado.valor);
   if (igual) {
     console.log(`ok       ${rotulo}`);
   } else {
     falhas.push({
       rotulo,
-      motivo: `esperado ${JSON.stringify(esperado.valor)}, veio ${JSON.stringify(obtido)}`,
+      motivo:
+        esperado.modo === "contem"
+          ? `faltou ${JSON.stringify(esperado.valor.filter((v) => !obtido.includes(v)))}`
+          : `esperado ${JSON.stringify(esperado.valor)}, veio ${JSON.stringify(obtido)}`,
     });
     console.log(`DIFERE   ${rotulo}`);
   }
