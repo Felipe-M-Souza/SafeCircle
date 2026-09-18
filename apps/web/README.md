@@ -44,22 +44,36 @@ Abre em http://localhost:4321. O servidor (`scripts/serve-web.mjs`) serve os
 arquivos estáticos e existe só para revisão; em produção quem serve é o
 Cloudflare.
 
-## Conteúdo pendente antes de publicar
+## Definições jurídicas
 
 As páginas legais descrevem com exatidão **o que o sistema faz**, extraído de
-`docs/release/privacy-policy-inputs.md`, que por sua vez veio do código. Mas há
-trechos marcados com `[preencher]` que o código não determina e que dependem de
-decisão do proprietário:
+`docs/release/privacy-policy-inputs.md`, que por sua vez veio do código. O que o
+código não determina foi preenchido e os avisos de rascunho saíram:
 
-- Razão social, CNPJ e endereço do responsável pelo tratamento.
-- E-mails de contato: privacidade, suporte e segurança.
-- Idade mínima e regra para menores de idade.
-- Base legal do tratamento na LGPD, encarregado de dados e foro.
-- Limitação de responsabilidade, conforme orientação jurídica.
+| Definição | Valor | Origem |
+| --------- | ----- | ------ |
+| Controlador | FELIPE DE MELO SOUZA TECNOLOGIA DA INFORMACAO LTDA, CNPJ 61.927.710/0001-56, São Paulo/SP | whois de `softechconsulting.com.br` e cadastro público da Receita Federal |
+| Encarregado (LGPD art. 41) | Felipe de Melo Souza, `privacidade@softechconsulting.com.br` | definido pelo proprietário |
+| Contatos | `suporte@`, `privacidade@`, `seguranca@` em `softechconsulting.com.br` | definido pelo proprietário |
+| Idade mínima | não há; conta de criança até 12 anos exige consentimento de quem responde por ela (LGPD art. 14) | definido pelo proprietário |
+| Foro | Comarca de São Paulo/SP, ressalvado o domicílio do consumidor (CDC art. 101) | redigido aqui |
 
-Cada página com pendência mostra um aviso visível de rascunho no topo. **Remova
-o aviso só depois de preencher tudo** — publicar com os marcadores é pior do que
-não publicar.
+### Duas coisas que merecem revisão de advogado
+
+O texto abaixo foi redigido a partir do que o código faz, não por um
+profissional habilitado. Funciona como ponto de partida e não como parecer:
+
+1. **A limitação de responsabilidade** no item 7 dos termos. O valor pago limita
+   a indenização, mas o aplicativo trata de segurança pessoal e o Código de
+   Defesa do Consumidor restringe esse tipo de cláusula.
+2. **A designação do encarregado.** A Resolução CD/ANPD nº 2/2022 dispensa
+   agentes de pequeno porte de indicar um encarregado, desde que mantenham um
+   canal de comunicação. Indicar uma pessoa é mais transparente, mas é uma
+   escolha, não uma obrigação.
+
+As três caixas de e-mail precisam existir e ser lidas de verdade. A Google
+verifica o endereço de suporte, e um canal de privacidade que ninguém atende é
+descumprimento da LGPD, não um detalhe.
 
 ## De onde vem o conteúdo
 
