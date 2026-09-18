@@ -71,9 +71,33 @@ profissional habilitado. Funciona como ponto de partida e não como parecer:
    canal de comunicação. Indicar uma pessoa é mais transparente, mas é uma
    escolha, não uma obrigação.
 
-As três caixas de e-mail precisam existir e ser lidas de verdade. A Google
-verifica o endereço de suporte, e um canal de privacidade que ninguém atende é
-descumprimento da LGPD, não um detalhe.
+### As três caixas precisam existir
+
+Publicar os endereços não os cria. A Google verifica o endereço de suporte
+antes de aprovar o aplicativo, e um canal de privacidade que ninguém atende é
+descumprimento da LGPD, não um detalhe de forma.
+
+O e-mail do domínio é servido pelo Titan, contratado junto com a hospedagem.
+**O painel do Titan não funciona em celular** — ele mostra "Titan Control Panel
+experience is not currently optimized for mobile" e não deixa passar, mesmo com
+"site para computador" marcado. É preciso um computador.
+
+No painel da HostGator, em E-mails, abra o gerenciamento do plano de
+`softechconsulting.com.br`, o que leva ao painel do Titan. Lá:
+
+1. Crie `suporte@softechconsulting.com.br` como caixa real.
+2. Adicione `privacidade@` e `seguranca@` como **apelidos** dessa caixa.
+   Apelido não consome licença; caixa extra costuma ser cobrada.
+3. Ative o **encaminhamento** da caixa para o endereço que você lê todo dia.
+
+Encaminhar não basta. Sem configurar "Enviar e-mail como" no destino, a
+resposta sai do endereço pessoal, e quem escreveu para `privacidade@` recebe
+resposta de outro lugar. No Gmail isso fica em Configurações, Contas e
+importação, usando o SMTP `smtp.titan.email` na porta 465 com SSL.
+
+Detalhe que já foi decidido: `seguranca@` vai **sem cedilha**. Endereço com
+acento existe na especificação e quebra na prática, e este é um canal que a
+Google vai verificar.
 
 ## De onde vem o conteúdo
 
