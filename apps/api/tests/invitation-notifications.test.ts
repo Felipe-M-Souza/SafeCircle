@@ -65,6 +65,12 @@ describe("Convite — aviso por e-mail", () => {
     expect(message.text).toContain("Convites recebidos");
     expect(message.text).toContain("safecircle://");
 
+    // O único link clicável precisa ser https. Um `<a href="safecircle://">`
+    // não leva a lugar nenhum para quem ainda não tem o app — que é justamente
+    // quem recebe convite — e faz o e-mail cair em spam.
+    expect(message.html ?? "").toContain('<a href="https://');
+    expect(message.html ?? "").not.toContain('<a href="safecircle://');
+
     // Só o primeiro nome de quem convidou; o sobrenome não vai na mensagem.
     expect(message.text).not.toContain("Souza");
     // Nada do destinatário além do endereço, e nenhum segredo.

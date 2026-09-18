@@ -65,6 +65,7 @@ export class ResendApiEmailProvider implements EmailProvider {
         body: JSON.stringify({
           from: this.from,
           to: [message.to],
+          reply_to: message.replyTo,
           subject: message.subject,
           text: message.text,
           html: message.html,

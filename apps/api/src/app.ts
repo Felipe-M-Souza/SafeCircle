@@ -267,6 +267,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       autoStart:
         options.outboxWorkerAutoStart ?? (config.outboxEnabled && config.nodeEnv !== "test"),
       appDeepLink: config.appDeepLink,
+      appSiteUrl: config.appSiteUrl,
+      ...(config.emailReplyTo ? { emailReplyTo: config.emailReplyTo } : {}),
       pollIntervalMs: config.outboxPollIntervalMs,
       batchSize: config.outboxBatchSize,
       concurrency: config.outboxConcurrency,

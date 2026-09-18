@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { useAuth } from "../auth/AuthContext";
-import { registerCurrentDevice } from "./device-registration";
+import { registerCurrentDevice, type RegistrationResult } from "./device-registration";
 import {
   addNotificationTapListener,
   configureForegroundPresentation,
@@ -50,8 +50,18 @@ function routeNotification(data: NotificationData): void {
 export interface NotificationsContextValue {
   supported: boolean;
   permission: NotificationPermission | "loading";
+  /**
+   * Resultado do cadastro no backend. `null` enquanto não houve tentativa.
+   *
+   * Permissão concedida **não** significa push funcionando: o token ainda pode
+   * faltar. A tela precisa dos dois para não afirmar que está tudo certo
+   * quando não está.
+   */
+  registration: RegistrationResult | null;
   refresh: () => Promise<void>;
   enable: () => Promise<NotificationPermission>;
+  /** Nova tentativa de cadastro, para o botão da tela. */
+  retryRegistration: () => Promise<void>;
 }
 
 export const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -63,6 +73,7 @@ export function NotificationsProvider({
 }): React.JSX.Element {
   const { status, api } = useAuth();
   const [permission, setPermission] = useState<NotificationPermission | "loading">("loading");
+  const [registration, setRegistration] = useState<RegistrationResult | null>(null);
 
   const refresh = useCallback(async () => {
     setPermission(await getPermissionStatus());
@@ -93,12 +104,20 @@ export function NotificationsProvider({
     };
   }, [refresh]);
 
+  const register = useCallback(async () => {
+    setRegistration(await registerCurrentDevice(api));
+  }, [api]);
+
   // Registro após login/restauração e quando a permissão for concedida.
   useEffect(() => {
     if (status === "authenticated" && permission === "granted") {
-      void registerCurrentDevice(api);
+      void register();
+      return;
     }
-  }, [status, permission, api]);
+    // Sair da conta ou perder a permissão invalida o resultado anterior: manter
+    // o "registered" antigo faria a tela afirmar que o push está funcionando.
+    setRegistration(null);
+  }, [status, permission, register]);
 
   const enable = useCallback(async () => {
     const result = await requestPermission();
@@ -108,7 +127,14 @@ export function NotificationsProvider({
 
   return (
     <NotificationsContext.Provider
-      value={{ supported: isPushSupported(), permission, refresh, enable }}
+      value={{
+        supported: isPushSupported(),
+        permission,
+        registration,
+        refresh,
+        enable,
+        retryRegistration: register,
+      }}
     >
       {children}
     </NotificationsContext.Provider>

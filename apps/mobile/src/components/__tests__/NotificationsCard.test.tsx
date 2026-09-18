@@ -10,8 +10,12 @@ async function renderCard(overrides: Partial<NotificationsContextValue>) {
   const value: NotificationsContextValue = {
     supported: true,
     permission: "undetermined",
+    // Por padrão o aparelho está cadastrado: assim cada teste declara o
+    // contrário só quando é isso que ele quer exercitar.
+    registration: { status: "registered" },
     refresh: jest.fn(async () => undefined),
     enable: jest.fn(async () => "granted" as const),
+    retryRegistration: jest.fn(async () => undefined),
     ...overrides,
   };
   const view = await render(
@@ -61,13 +65,41 @@ describe("NotificationsCard", () => {
     openSettings.mockRestore();
   });
 
-  it("permissão concedida: mostra status Ativadas", async () => {
-    await renderCard({ permission: "granted" });
+  it("permissão concedida e aparelho cadastrado: mostra status Ativadas", async () => {
+    await renderCard({ permission: "granted", registration: { status: "registered" } });
     expect(screen.getByText("Notificações")).toBeOnTheScreen();
     expect(
       screen.getByText("Receba alertas quando alguém do seu grupo pedir ajuda."),
     ).toBeOnTheScreen();
     expect(screen.getByText("Ativadas")).toBeOnTheScreen();
+  });
+
+  // Este é o caso que aconteceu em produção: permissão concedida, cadastro
+  // falhando, e a tela dizendo "Ativadas". A pessoa só descobriria na
+  // emergência. O teste existe para que isso não volte.
+  it("permissão concedida mas sem token: avisa que não funciona, em vez de Ativadas", async () => {
+    const { value } = await renderCard({
+      permission: "granted",
+      registration: { status: "token", detail: "Default FirebaseApp is not initialized" },
+    });
+    expect(screen.queryByText("Ativadas")).not.toBeOnTheScreen();
+    expect(screen.getByText("Notificações não estão funcionando")).toBeOnTheScreen();
+    expect(screen.getByText(/não conseguiu se registrar/)).toBeOnTheScreen();
+    expect(screen.getByText(/Default FirebaseApp is not initialized/)).toBeOnTheScreen();
+
+    fireEvent.press(screen.getByText("Tentar novamente"));
+    expect(value.retryRegistration).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha de rede no cadastro fala de conexão, não de registro", async () => {
+    await renderCard({ permission: "granted", registration: { status: "api", detail: "offline" } });
+    expect(screen.getByText(/Verifique sua conexão/)).toBeOnTheScreen();
+  });
+
+  it("enquanto o cadastro não termina, não afirma que está ativado", async () => {
+    await renderCard({ permission: "granted", registration: null });
+    expect(screen.queryByText("Ativadas")).not.toBeOnTheScreen();
+    expect(screen.queryByText("Notificações não estão funcionando")).not.toBeOnTheScreen();
   });
 
   it("plataforma sem push ou carregando: não renderiza nada", async () => {
